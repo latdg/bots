@@ -26,6 +26,8 @@ const { crear, TZ_SCRIPT } = require("./gas/shim");
 const arg = nom => { const i = process.argv.indexOf("--" + nom); return i === -1 ? null : process.argv[i + 1]; };
 const CODI = arg("codi");
 const ESTAT = arg("estat");
+const FULLS = arg("fulls") || (ESTAT && path.join(ESTAT, "fulls.json"));
+const PROJECTE = arg("projecte") || "Correu";
 const FUNCIO = arg("funcio");
 const NOMES_CARREGA = process.argv.includes("--nomes-carrega");
 const consola = console;
@@ -33,8 +35,10 @@ const consola = console;
 // Activadors que fa servir el projecte Correu i que corren a GitHub.
 // tipus: "sempre" (cada execució), "hores" (a les hores de la constant),
 // "cada" (cada N hores, constant), "dia" (un cop al dia, a l'hora de la constant).
-const ACTIVADORS = [
-  { funcio: "comprovarPremsaInstant", tipus: "sempre" },
+// «minuts»: com a mínim tants minuts des de la darrera vegada (el workflow corre cada 15).
+const ACTIVADORS_PER_PROJECTE = {};
+ACTIVADORS_PER_PROJECTE.Correu = [
+  { funcio: "comprovarPremsaInstant", tipus: "minuts", minuts: 25 },
   { funcio: "actualitzarResumPanell", tipus: "hores", constant: "PANELL_HORES" },
   { funcio: "actualitzarExtresPanell", tipus: "hores", constant: "PANELL_HORES_EXTRES" },
   { funcio: "comprovarDefuncionsMati", tipus: "dia", constant: "HORA_ENVIAMENT_DEFUNCIONS" },
@@ -42,6 +46,12 @@ const ACTIVADORS = [
   { funcio: "comprovarSubhastes", tipus: "cada", constant: "SUBHASTES_INTERVAL_HORES" },
   { funcio: "comprovarDadesMunicipals", tipus: "dia", constant: "DM_HORA_CONSULTA" }
 ];
+// Bot d'esports (projecte LaTdG): la funció mateixa només consulta la FCF i la FEB
+// quan hi ha algun partit dins la seva finestra (llegeix el calendari copiat).
+ACTIVADORS_PER_PROJECTE.LaTdG = [
+  { funcio: "comprovarResultatsEsportius", tipus: "sempre" }
+];
+const ACTIVADORS = ACTIVADORS_PER_PROJECTE[PROJECTE] || [];
 
 function fitxersCodi() {
   return fs.readdirSync(CODI).filter(n => /\.(js|gs)$/.test(n)).sort((a, b) => a.localeCompare(b, "en"));
@@ -93,6 +103,7 @@ function toca(a, darrers, ara) {
   const darrer = darrers[a.funcio] ? new Date(darrers[a.funcio]) : null;
   const d = darrer ? horaMadrid(darrer) : null;
   if (a.tipus === "sempre") return true;
+  if (a.tipus === "minuts") return !darrer || ara - darrer >= a.minuts * 60000;
   const c = valor(a.constant);
   if (a.tipus === "hores") return Array.isArray(c) && c.indexOf(hora) !== -1 && !(d && d.dia === dia && d.hora === hora);
   if (a.tipus === "dia") return typeof c === "number" && hora >= c && !(d && d.dia === dia);
@@ -127,7 +138,7 @@ function main() {
     magatzem.cache = {};
     consola.log(`Propietats importades de l'Apps Script (${Object.keys(magatzem.props).length}) · mode ${magatzem.mode}`);
   }
-  magatzem.fulls = (llegeixJson(path.join(ESTAT, "fulls.json"), {}) || {}).fulls || {};
+  magatzem.fulls = (llegeixJson(FULLS, {}) || {}).fulls || {};
   const prova = magatzem.mode !== "real" || process.env.FORCAR_PROVA === "1";
   if (prova) magatzem.interceptats = magatzem.interceptats || [];
 
@@ -141,7 +152,7 @@ function main() {
 
   const ara = new Date();
   const fer = FUNCIO ? [{ funcio: FUNCIO }] : ACTIVADORS.filter(a => toca(a, magatzem.darrers, ara));
-  consola.log(`Mode: ${prova ? "PROVA (no s'envia res)" : "real"} · ${ordre.length} fitxers · funcions: ${fer.map(a => a.funcio).join(", ") || "cap"}`);
+  consola.log(`${PROJECTE} · mode: ${prova ? "PROVA (no s'envia res)" : "real"} · ${ordre.length} fitxers · funcions: ${fer.map(a => a.funcio).join(", ") || "cap"}`);
 
   for (const a of fer) {
     const f = valor(a.funcio);

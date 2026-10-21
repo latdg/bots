@@ -1,6 +1,8 @@
 # =============================================================================
 # BOTS DEL PROJECTE CORREU — La TdG · 21.10.2026
-# Cada 30 minuts executa el codi del projecte Correu d'Apps Script (del repo
+# 21.10.2026: també el bot d'esports del projecte LaTdG (cada 15 minuts; només
+# consulta la FCF i la FEB quan hi ha partit). El bot de premsa, cada 30.
+# Executa el codi dels projectes d'Apps Script (del repo
 # privat latdg/apps-script, tal com és) amb l'adaptador de run.js: bot de premsa,
 # defuncions, resum i extres del panell, Parlaments, subhastes i dades
 # municipals. Cada funció corre a les hores que tocaria amb els activadors de
@@ -15,11 +17,11 @@ name: Bots del projecte Correu
 
 on:
   schedule:
-    - cron: "5,35 * * * *"
+    - cron: "5,20,35,50 * * * *"
   workflow_dispatch:
     inputs:
       funcio:
-        description: "Funció concreta per executar ara (buit = les que toquin per l'hora)"
+        description: "Funció concreta per executar ara (buit = les que toquin per l'hora; esports:nom per al projecte LaTdG)"
         required: false
         default: ""
 
@@ -43,7 +45,9 @@ jobs:
           repository: latdg/apps-script
           token: ${{ secrets.APPS_SCRIPT_TOKEN }}
           path: codi
-          sparse-checkout: Correu
+          sparse-checkout: |
+            Correu
+            LaTdG
 
       - uses: actions/setup-node@v4
         with:
@@ -57,14 +61,26 @@ jobs:
           URL="https://x-access-token:${TOKEN}@github.com/latdg/apps-script.git"
           git clone -q --depth 1 --branch estat-bots "$URL" estat 2>/dev/null || mkdir -p estat
 
-      - name: Executar
+      - name: Executar (projecte Correu)
         env:
           FUNCIO: ${{ inputs.funcio }}
         run: |
           if [ -n "$FUNCIO" ]; then
-            node run.js --codi codi/Correu --estat estat --funcio "$FUNCIO"
+            [ "${FUNCIO#esports:}" = "$FUNCIO" ] && node run.js --codi codi/Correu --estat estat --funcio "$FUNCIO" || true
           else
             node run.js --codi codi/Correu --estat estat
+          fi
+
+      - name: Executar (bot d'esports, projecte LaTdG)
+        if: always()
+        env:
+          FUNCIO: ${{ inputs.funcio }}
+        run: |
+          [ -f estat/esports/props.json ] || { echo "El bot d'esports encara no s'ha passat a GitHub."; exit 0; }
+          if [ -n "$FUNCIO" ]; then
+            [ "${FUNCIO#esports:}" != "$FUNCIO" ] && node run.js --projecte LaTdG --codi codi/LaTdG --estat estat/esports --fulls estat/fulls.json --funcio "${FUNCIO#esports:}" || true
+          else
+            node run.js --projecte LaTdG --codi codi/LaTdG --estat estat/esports --fulls estat/fulls.json
           fi
 
       - name: Desar l'estat
@@ -75,10 +91,15 @@ jobs:
           URL="https://x-access-token:${TOKEN}@github.com/latdg/apps-script.git"
           # props.json i fulls.json els escriu l'Apps Script: es prenen els més recents.
           if git fetch -q --depth 1 "$URL" estat-bots 2>/dev/null; then
-            for f in props.json fulls.json; do git show FETCH_HEAD:$f > /tmp/$f 2>/dev/null && mv /tmp/$f $f || true; done
+            for f in props.json fulls.json esports/props.json; do
+              mkdir -p "$(dirname /tmp/r/$f)"
+              git show FETCH_HEAD:$f > /tmp/r/$f 2>/dev/null && mkdir -p "$(dirname $f)" && mv /tmp/r/$f $f || true
+            done
           fi
-          mkdir -p /tmp/nou
-          for f in estat.json registre.txt props.json fulls.json; do [ -f $f ] && cp $f /tmp/nou/; done
+          mkdir -p /tmp/nou/esports
+          for f in estat.json registre.txt props.json fulls.json esports/estat.json esports/registre.txt esports/props.json; do
+            [ -f $f ] && cp $f /tmp/nou/$f
+          done
           cd /tmp/nou
           git init -q -b estat-bots
           git add -A
