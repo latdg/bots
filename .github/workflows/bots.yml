@@ -55,6 +55,7 @@ jobs:
           sparse-checkout: |
             Correu
             alertes
+            LaTdG
 
       - uses: actions/setup-node@v4
         with:

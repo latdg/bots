@@ -98,6 +98,29 @@ ps_diari() {
   PS_PID=$!
 }
 
+# BLOCS DE WEBS DEL TAULER (21.10.2026): aire, Pla Alfa, sequera, refugis, BORME
+# i subhastes (abans a publicarTaulerTdG de l'Apps Script). Un cop cada hora, de
+# 8 a 23 h; cada bloc es consulta segons la seva freqüència (TaulerWebsGitHub.gs).
+# El resultat va a la branca «tauler-webs» d'aquest repo, i el tauler en directe
+# (latdg/tauler) l'afegeix al tauler.
+tauler_webs() {
+  local h; h=$(date +%-H)
+  [ "$h" -ge 8 ] || return 0
+  [ "$(cat estat/tauler-webs.txt 2>/dev/null)" = "$(date +%F-%H)" ] && return 0
+  [ -d codi/LaTdG ] || return 0
+  rm -f /tmp/webs.json
+  node run.js --projecte LaTdG --codi codi/LaTdG --estat estat/LaTdG \
+    --funcio taulerWebsGitHub --sortida /tmp/webs.json > /dev/null 2>&1 || true
+  date +%F-%H > estat/tauler-webs.txt
+  [ -s /tmp/webs.json ] || { echo "⚠️ Blocs de webs del tauler: sense resultat."; return 0; }
+  node -e 'const d=JSON.parse(require("fs").readFileSync("/tmp/webs.json","utf8")); process.exit(d.consultats && d.consultats.length ? 0 : 1)' || return 0
+  rm -rf /tmp/tw && mkdir -p /tmp/tw && cp /tmp/webs.json /tmp/tw/webs.json
+  (cd /tmp/tw && git init -q -b tauler-webs && git add -A &&
+   git -c user.name="La TdG (tauler)" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+     commit -qm "Blocs de webs del tauler ($(date '+%d.%m.%Y %H.%M'))" && git push -qf "$REPO_BOTS" tauler-webs) \
+   && echo "🌐 Blocs de webs del tauler publicats." || echo "⚠️ No s'han pogut publicar els blocs de webs del tauler."
+}
+
 passada() {
   git -C codi pull -q 2>/dev/null || true   # sempre la darrera versió del codi
   node run.js --codi codi/Correu --estat estat || true
@@ -106,6 +129,7 @@ passada() {
   fi
   llamps
   ps_diari
+  tauler_webs
   rm -f estat/diagnosi.txt
   desa
 }
