@@ -13,6 +13,9 @@ jobs:
           curl -sS -m 60 -G "$B" --data-urlencode "\$where=codimun in('170221','170577','179026','179011')" --data-urlencode '$limit=500' > /tmp/o/codis.json
           curl -sS -m 60 -G "$B" --data-urlencode "\$where=upper(municipi) like '%BISBAL%' OR upper(municipi) like '%CORÇÀ%' OR upper(municipi) like '%CORCA%' OR upper(municipi) like '%FORALLAC%' OR upper(municipi) like '%CRU%LLES%'" --data-urlencode '$limit=500' > /tmp/o/noms.json
           curl -sS -m 60 -G "$B" --data-urlencode '$select=codimun,municipi,count(*)' --data-urlencode '$group=codimun,municipi' --data-urlencode "\$where=codiprov='17' OR starts_with(codimun,'17')" --data-urlencode '$limit=500' > /tmp/o/grups.json
+          curl -sS -m 300 -o /tmp/nap.xml -w "NAP %{http_code} %{size_download}\n" "https://infocar.dgt.es/datex2/v3/miterd/EnergyInfrastructureTablePublication/electrolineras.xml" > /tmp/o/nap.txt 2>&1 || true
+          grep -o -i -E "bisbal[^<]{0,40}|corc[aà][^<]{0,30}|cor&#231;[^<]{0,30}|forallac|vulpellac|peratallada|cru[iï]lles|monells|casavells|fonteta|canapost" /tmp/nap.xml | sort | uniq -c >> /tmp/o/nap.txt || true
+          curl -sS -m 60 "https://overpass-api.de/api/interpreter" --data-urlencode 'data=[out:json][timeout:50];area["boundary"="administrative"]["name"~"^(la Bisbal d.Empordà|Corçà|Forallac|Cruïlles, Monells i Sant Sadurní de l.Heura)$"]->.a;nwr["amenity"="charging_station"](area.a);out center tags;' > /tmp/o/osm.json || true
           cd /tmp/o && git init -q -b diagnosi && git add -A &&
             git -c user.name=diagnosi -c user.email=d@d commit -qm diagnosi &&
             git push -qf "https://x-access-token:${{ secrets.APPS_SCRIPT_TOKEN }}@github.com/latdg/apps-script.git" diagnosi
