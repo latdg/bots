@@ -29,6 +29,8 @@ const ESTAT = arg("estat");
 const FULLS = arg("fulls") || (ESTAT && path.join(ESTAT, "fulls.json"));
 const PROJECTE = arg("projecte") || "Correu";
 const FUNCIO = arg("funcio");
+const ARGS = arg("args") ? JSON.parse(arg("args")) : [];   // arguments de --funcio (JSON)
+const SORTIDA = arg("sortida");                              // on es desa el que retorna --funcio
 const NOMES_CARREGA = process.argv.includes("--nomes-carrega");
 const consola = console;
 
@@ -48,7 +50,7 @@ ACTIVADORS_PER_PROJECTE.Correu = [
 ];
 // Bot d'alertes (projecte alertes): el motor decideix cada mòdul per la seva freqüència.
 ACTIVADORS_PER_PROJECTE.alertes = [
-  { funcio: "executarIncidencies", tipus: "minuts", minuts: 9 }
+  { funcio: "executarIncidencies", tipus: "sempre" }   // el motor decideix cada mòdul per la seva freqüència
 ];
 const ACTIVADORS = ACTIVADORS_PER_PROJECTE[PROJECTE] || [];
 
@@ -150,7 +152,7 @@ function main() {
   carrega(ordre);
 
   const ara = new Date();
-  const fer = FUNCIO ? [{ funcio: FUNCIO }] : ACTIVADORS.filter(a => toca(a, magatzem.darrers, ara));
+  const fer = FUNCIO ? [{ funcio: FUNCIO, args: ARGS }] : ACTIVADORS.filter(a => toca(a, magatzem.darrers, ara));
   consola.log(`${PROJECTE} · mode: ${prova ? "PROVA (no s'envia res)" : "real"} · ${ordre.length} fitxers · funcions: ${fer.map(a => a.funcio).join(", ") || "cap"}`);
 
   for (const a of fer) {
@@ -164,7 +166,8 @@ function main() {
     const p0 = s.estadistiques.peticions;
     let estat = "✅";
     try {
-      f();
+      const r = f.apply(null, a.args || []);
+      if (SORTIDA && FUNCIO) fs.writeFileSync(SORTIDA, JSON.stringify(r === undefined ? null : r));
     } catch (e) {
       estat = "❌ " + String(e && e.message || e).slice(0, 80).replace(/https?:\/\/\S+/g, "(url)");
       registre("❌ " + (e && e.stack || e));

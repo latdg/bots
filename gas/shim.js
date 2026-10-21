@@ -377,13 +377,17 @@ function crear(magatzem, opcions) {
   const textLog = a => a.map(x => (typeof x === "string" ? x : x instanceof Error ? x.stack || x.message : (() => {
     try { return JSON.stringify(x); } catch (e) { return String(x); }
   })())).join(" ");
+  let textRegistre = "";
   const Logger = {
     log(f, ...a) {
-      registre(typeof f === "string" && a.length && /%s/.test(f) ? Utilities.formatString(f, ...a) : textLog([f, ...a]));
+      const t = typeof f === "string" && a.length && /%s/.test(f) ? Utilities.formatString(f, ...a) : textLog([f, ...a]);
+      textRegistre += t + "\n";
+      if (textRegistre.length > 2000000) textRegistre = textRegistre.slice(-1000000);
+      registre(t);
       return Logger;
     },
-    getLog() { return ""; },
-    clear() {}
+    getLog() { return textRegistre; },   // el vigilant de fonts del bot d'alertes el llegeix
+    clear() { textRegistre = ""; }
   };
   const consola = { log: (...a) => registre(textLog(a)), info: (...a) => registre(textLog(a)), warn: (...a) => registre(textLog(a)), error: (...a) => registre(textLog(a)) };
 
@@ -667,6 +671,23 @@ function crear(magatzem, opcions) {
     getRemainingDailyQuota: () => 0
   };
   const Charts = new Proxy({}, { get: () => { throw new Error("Charts no és disponible a GitHub"); } });
+  // LanguageApp: a GitHub no hi ha el traductor de Google; es fa servir el de
+  // Softcatalà (Apertium), que per a castellà-català és molt bo.
+  const LanguageApp = {
+    translate(text, origen, desti) {
+      const parell = String(origen || "es").slice(0, 2) + "|" + String(desti || "ca").slice(0, 2);
+      const r = UrlFetchApp.fetch("https://www.softcatala.org/apertium/json/translate", {
+        method: "post", muteHttpExceptions: true,
+        payload: { langpair: parell, q: String(text), markUnknown: "no" }
+      });
+      if (r.getResponseCode() !== 200) throw new Error("Softcatalà HTTP " + r.getResponseCode());
+      const d = JSON.parse(r.getContentText());
+      const t = d && d.responseData && d.responseData.translatedText;
+      if (!t) throw new Error("Softcatalà: resposta sense traducció");
+      return String(t).replace(/\*(?=\w)/g, "");
+    }
+  };
+
   const MimeType = {
     PLAIN_TEXT: "text/plain", PDF: "application/pdf", JSON: "application/json", HTML: "text/html", CSV: "text/csv",
     PNG: "image/png", JPEG: "image/jpeg", GOOGLE_DOCS: "application/vnd.google-apps.document",
@@ -677,7 +698,7 @@ function crear(magatzem, opcions) {
     globals: {
       UrlFetchApp, Utilities, Logger, console: consola, PropertiesService, CacheService, LockService, Session,
       XmlService, SpreadsheetApp, DriveApp, Drive, DocumentApp, ScriptApp, GmailApp: correu, MailApp: correu,
-      Charts, MimeType
+      Charts, MimeType, LanguageApp
     },
     estadistiques
   };

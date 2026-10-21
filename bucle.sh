@@ -33,12 +33,46 @@ desa() {
    || echo "⚠️ No s'ha pogut desar l'estat (es tornarà a provar)."
 }
 
+# LLAMPS A DEMANDA (21.10.2026): el botó privat de la pàgina dels llamps (via el
+# Worker latdg-llamps) deixa una petició a la branca «peticions» d'aquest repo
+# (llamps.json: {"id", "hores"}). Aquí s'atén a la passada següent (com a molt
+# 5 minuts) i el resultat es publica a la branca «llamps-dades».
+REPO_BOTS="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+llamps() {
+  [ -f estat/alertes/props.json ] || return 0
+  rm -rf /tmp/pet && git clone -q --depth 1 --branch peticions "$REPO_BOTS" /tmp/pet 2>/dev/null || return 0
+  [ -f /tmp/pet/llamps.json ] || return 0
+  id=$(node -e 'console.log(require("/tmp/pet/llamps.json").id||"")')
+  hores=$(node -e 'console.log(Number(require("/tmp/pet/llamps.json").hores)||6)')
+  [ -n "$id" ] || return 0
+  grep -qx "$id" estat/alertes/llamps-fets.txt 2>/dev/null && return 0
+  echo "⚡ Petició de llamps $id: $hores h"
+  rm -f /tmp/llamps.json
+  node run.js --projecte alertes --codi codi/alertes --estat estat/alertes --fulls estat/fulls.json \
+    --funcio revisarLlampsWeb --args "[$hores]" --sortida /tmp/llamps.json || true
+  echo "$id" >> estat/alertes/llamps-fets.txt
+  [ -s /tmp/llamps.json ] || return 0
+  rm -rf /tmp/ll && (git clone -q --depth 1 --branch llamps-dades "$REPO_BOTS" /tmp/ll 2>/dev/null || mkdir -p /tmp/ll)
+  rm -rf /tmp/ll/.git && mkdir -p /tmp/ll/historic
+  node -e '
+    const fs=require("fs"); const r=JSON.parse(fs.readFileSync("/tmp/llamps.json","utf8")); r.id=process.argv[1];
+    fs.writeFileSync("/tmp/ll/darrer.json", JSON.stringify(r));
+    fs.writeFileSync("/tmp/ll/historic/"+r.id+".json", JSON.stringify(r));
+    let idx=[]; try{idx=JSON.parse(fs.readFileSync("/tmp/ll/index.json","utf8"))}catch(e){}
+    idx.unshift({id:r.id, generat:r.generat, hores:r.hores, a10:r.llamps.filter(l=>l.km<=10).length, a50:r.llamps.length});
+    fs.writeFileSync("/tmp/ll/index.json", JSON.stringify(idx.slice(0,200)));' "$id"
+  (cd /tmp/ll && git init -q -b llamps-dades && git add -A &&
+   git -c user.name="La TdG (llamps)" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+     commit -qm "Llamps ($id)" && git push -qf "$REPO_BOTS" llamps-dades) || echo "⚠️ No s'han pogut publicar els llamps."
+}
+
 passada() {
   git -C codi pull -q 2>/dev/null || true   # sempre la darrera versió del codi
   node run.js --codi codi/Correu --estat estat || true
   if [ -f estat/alertes/props.json ]; then
     node run.js --projecte alertes --codi codi/alertes --estat estat/alertes --fulls estat/fulls.json || true
   fi
+  llamps
   desa
 }
 

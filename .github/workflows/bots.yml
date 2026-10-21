@@ -33,7 +33,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
   actions: write
 
 jobs:
@@ -71,6 +71,7 @@ jobs:
       - name: Executar
         env:
           FUNCIO: ${{ inputs.funcio }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ -n "$FUNCIO" ]; then ./bucle.sh una "$FUNCIO"; else ./bucle.sh; fi
 
