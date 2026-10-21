@@ -1,0 +1,34 @@
+# TEMPORAL (21.10.2026): per què les webs dels ajuntaments fallen des de GitHub.
+name: Diagnosi temporal
+on: workflow_dispatch
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TZ: Europe/Madrid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: latdg/apps-script
+          token: ${{ secrets.APPS_SCRIPT_TOKEN }}
+          path: codi
+          sparse-checkout: Correu
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm install --no-audit --no-fund --silent
+      - name: Prova
+        run: |
+          mkdir -p /tmp/o /tmp/et
+          node run.js --codi codi/Correu --estat /tmp/et --funcio obtenirNoticiesWebsMunicipals --sortida /tmp/o/sortida.json > /tmp/o/log.txt 2>&1 || true
+          cp /tmp/et/registre.txt /tmp/o/ 2>/dev/null || true
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          for u in https://www.labisbal.cat/noticies/ https://www.forallac.cat/noticies/ https://corca.cat/actualitat/noticies/; do
+            n=$(echo "$u" | cut -d/ -f3)
+            curl -sS -m 60 -A "$UA" -o "/tmp/o/$n.html" -w "$u %{http_code} %{size_download} %{time_total}\n" "$u" >> /tmp/o/curl.txt 2>&1 || echo "$u ERROR $?" >> /tmp/o/curl.txt
+            timeout 90 google-chrome --no-sandbox --headless=new --dump-dom "$u" > "/tmp/o/$n.chrome.html" 2>/dev/null; echo "$u chrome $(wc -c < /tmp/o/$n.chrome.html)" >> /tmp/o/curl.txt
+          done
+          cd /tmp/o && git init -q -b diagnosi && git add -A &&
+            git -c user.name=diagnosi -c user.email=d@d commit -qm diagnosi &&
+            git push -qf "https://x-access-token:${{ secrets.APPS_SCRIPT_TOKEN }}@github.com/latdg/apps-script.git" diagnosi
