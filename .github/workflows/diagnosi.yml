@@ -22,17 +22,17 @@ jobs:
         run: |
           mkdir -p /tmp/o /tmp/et
           cat > codi/Correu/zzProvaJina.js <<'JS'
-function provaJina_() {
-  const webs = [["https://www.labisbal.cat/noticies/","https://www.labisbal.cat",extreureNoticiesBisbal],
-                ["https://www.forallac.cat/noticies/","https://www.forallac.cat",extreureNoticiesForallac],
-                ["https://corca.cat/actualitat/noticies/","https://corca.cat",extreureNoticiesCorca]];
-  return webs.map(function (w) {
-    const h = descarregarHTMLMunicipalJina_(w[0]);
-    const n = h ? normalitzarNoticiesMunicipals(w[2](h, {url: w[0], base: w[1]})) : [];
-    return w[0] + " | html " + h.length + " | " + n.length + " notícies | " + n.slice(0,2).map(function(x){return x.dataFmt+" "+x.title}).join(" / ");
-  });
-}
-JS
+          function provaJina_() {
+            const webs = [["https://www.labisbal.cat/noticies/","https://www.labisbal.cat",extreureNoticiesBisbal],
+                          ["https://www.forallac.cat/noticies/","https://www.forallac.cat",extreureNoticiesForallac],
+                          ["https://corca.cat/actualitat/noticies/","https://corca.cat",extreureNoticiesCorca]];
+            return webs.map(function (w) {
+              const h = descarregarHTMLMunicipalJina_(w[0]);
+              const n = h ? normalitzarNoticiesMunicipals(w[2](h, {url: w[0], base: w[1]})) : [];
+              return w[0] + " | html " + h.length + " | " + n.length + " notícies | " + n.slice(0,2).map(function(x){return x.dataFmt+" "+x.title}).join(" / ");
+            });
+          }
+          JS
           node run.js --codi codi/Correu --estat /tmp/et --funcio provaJina_ --sortida /tmp/o/jina.json > /tmp/o/log.txt 2>&1 || true
           node run.js --codi codi/Correu --estat /tmp/et --funcio obtenirNoticiesWebsMunicipals --sortida /tmp/o/sortida.json >> /tmp/o/log.txt 2>&1 || true
           cd /tmp/o && git init -q -b diagnosi && git add -A &&
