@@ -66,6 +66,38 @@ llamps() {
      commit -qm "Llamps ($id)" && git push -qf "$REPO_BOTS" llamps-dades) || echo "⚠️ No s'han pogut publicar els llamps."
 }
 
+# LOTERIES I PARLAMENT (21.10.2026): els scripts de PowerShell que corrien al
+# portàtil (ps/). Una vegada al dia, a partir de les 7 h, en segon pla (triguen
+# uns minuts i no han d'aturar els bots). Fan servir Chrome en comptes d'Edge.
+# El testimoni del bot d'infos i el del panell surten de les propietats del
+# projecte Correu i es desen fora de la carpeta d'estat (no es pugen enlloc).
+# La memòria (vistos, termes, registre) va a estat/ps (branca privada).
+PS_PID=""
+ps_diari() {
+  [ "$(date +%-H)" -ge 7 ] || return 0
+  [ "$(cat estat/ps/fet.txt 2>/dev/null)" = "$(date +%F)" ] && return 0
+  [ -n "$PS_PID" ] && kill -0 "$PS_PID" 2>/dev/null && return 0
+  [ -f estat/props.json ] || return 0
+  mkdir -p estat/ps /tmp/ps-cfg && chmod 700 /tmp/ps-cfg
+  for f in ps/inicial/*.json; do [ -f "estat/ps/$(basename "$f")" ] || cp "$f" estat/ps/; done
+  prova=$(node -e '
+    const fs=require("fs"); const e=JSON.parse(fs.readFileSync("estat/props.json","utf8")); const p=e.props||{};
+    fs.writeFileSync("/tmp/ps-cfg/config.json", JSON.stringify({token:p.TELEGRAM_BOT_TOKEN_INFOS||"", chat_id:p.TELEGRAM_CHAT_ID_INFOS||""}), {mode:0o600});
+    fs.writeFileSync("/tmp/ps-cfg/panell.txt", p.GITHUB_TOKEN_PANELL||"", {mode:0o600});
+    console.log(e.mode==="real" ? "" : "-Prova");')
+  echo "🍀🏛️ Loteries i Parlament ${prova}"
+  (
+    export NAVEGADOR="$PWD/ps/navegador.sh" LATDG_CARPETA="$PWD/estat/ps" \
+           LATDG_CONFIG=/tmp/ps-cfg/config.json LATDG_TOKEN_PANELL=/tmp/ps-cfg/panell.txt
+    pwsh -NoProfile -File ps/LoteriesLaTdG.ps1 $prova > estat/ps/sortida-loteries.txt 2>&1
+    echo "Loteries: $(tail -n 1 estat/ps/sortida-loteries.txt)"
+    pwsh -NoProfile -File ps/ParlamentLaTdG.ps1 $prova > estat/ps/sortida-parlament.txt 2>&1
+    echo "Parlament: $(tail -n 1 estat/ps/sortida-parlament.txt)"
+    date +%F > estat/ps/fet.txt
+  ) &
+  PS_PID=$!
+}
+
 passada() {
   git -C codi pull -q 2>/dev/null || true   # sempre la darrera versió del codi
   node run.js --codi codi/Correu --estat estat || true
@@ -73,6 +105,8 @@ passada() {
     node run.js --projecte alertes --codi codi/alertes --estat estat/alertes --fulls estat/fulls.json || true
   fi
   llamps
+  ps_diari
+  rm -f estat/diagnosi.txt
   desa
 }
 
@@ -90,3 +124,6 @@ while :; do
   [ $((SECONDS + espera + 120)) -ge $FI ] && break
   sleep "$espera"
 done
+
+# Si Loteries o el Parlament encara corren, s'esperen abans de plegar.
+if [ -n "$PS_PID" ]; then wait "$PS_PID"; desa; fi
