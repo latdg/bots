@@ -1,0 +1,26 @@
+# Diagnòstic puntual (temporal): es poden llegir Loteries i el Parlament des de GitHub?
+name: Diagnosi
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  d:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+          B=$(command -v google-chrome || command -v chromium)
+          D=$(date -d '-7 days' +%Y%m%d); H=$(date +%Y%m%d)
+          L="https://www.loteriasyapuestas.es/servicios/buscadorSorteos?game_id=BONO&celebrados=true&fechaInicioInclusiva=$D&fechaFinInclusiva=$H"
+          P="https://www.parlament.cat/ext/r/pcat_portal/siap-cerca/cerca-de-documents?clear=100&p100_text_a_cercar=Corçà&p100_legislatura=15&p100_ordenacio=DATA_DOC_DESC&p100_page_limit=50&p100_cerca_executada=S"
+          {
+          echo "navegador: $B"; pwsh -v
+          echo "== Loteries (curl): $(curl -s -o /dev/null -w '%{http_code}' -A "$UA" "$L")"
+          echo "== Loteries (chrome):"; timeout 90 "$B" --headless=new --disable-gpu --no-sandbox --disable-blink-features=AutomationControlled --user-agent="$UA" --dump-dom "$L" 2>/dev/null | head -c 600; echo
+          echo "== Premi (chrome):"; timeout 90 "$B" --headless=new --disable-gpu --no-sandbox --disable-blink-features=AutomationControlled --user-agent="$UA" --dump-dom "https://www.loteriasyapuestas.es/es" 2>/dev/null | grep -o "<title>[^<]*</title>" | head -2
+          echo "== Parlament (chrome):"; timeout 120 "$B" --headless=new --disable-gpu --no-sandbox --disable-blink-features=AutomationControlled --user-agent="$UA" --virtual-time-budget=20000 --dump-dom "$P" 2>/dev/null > /tmp/p.html; wc -c /tmp/p.html; grep -o "p15_num_expedient[:=][0-9/-]*\|id_document=[0-9]*" /tmp/p.html | head -5
+          echo "== once.es: $(curl -s -o /dev/null -w '%{http_code}' -A "$UA" https://www.once.es/noticias)"
+          echo "== Google Noticies: $(curl -s -o /dev/null -w '%{http_code}' -A "$UA" 'https://news.google.com/rss/search?q=Grossa&hl=ca&gl=ES&ceid=ES:ca')"
+          } > diag.txt 2>&1
+          git clone -q --depth 1 --branch peticions "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" e
+          cp diag.txt e/diagnosi.txt && cd e && git -c user.name=d -c user.email=d@d add diagnosi.txt && git -c user.name=d -c user.email=d@d commit -qm diag && git push -q origin HEAD:peticions
