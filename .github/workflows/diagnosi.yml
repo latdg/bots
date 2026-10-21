@@ -21,20 +21,11 @@ jobs:
       - name: Prova
         run: |
           mkdir -p /tmp/o /tmp/et
-          cat > codi/Correu/zzProvaJina.js <<'JS'
-          function provaJina_() {
-            const webs = [["https://www.labisbal.cat/noticies/","https://www.labisbal.cat",extreureNoticiesBisbal],
-                          ["https://www.forallac.cat/noticies/","https://www.forallac.cat",extreureNoticiesForallac],
-                          ["https://corca.cat/actualitat/noticies/","https://corca.cat",extreureNoticiesCorca]];
-            return webs.map(function (w) {
-              const h = descarregarHTMLMunicipalJina_(w[0]);
-              const n = h ? normalitzarNoticiesMunicipals(w[2](h, {url: w[0], base: w[1]})) : [];
-              return w[0] + " | html " + h.length + " | " + n.length + " notícies | " + n.slice(0,2).map(function(x){return x.dataFmt+" "+x.title}).join(" / ");
-            });
-          }
+          cat > codi/Correu/zzProva.js <<'JS'
+          function provaContractacio_() { const r = obtenirDadesContractacioPublica(); return r.length + " resultats\n" + formatarContractacioText(r); }
           JS
-          node run.js --codi codi/Correu --estat /tmp/et --funcio provaJina_ --sortida /tmp/o/jina.json > /tmp/o/log.txt 2>&1 || true
-          node run.js --codi codi/Correu --estat /tmp/et --funcio obtenirNoticiesWebsMunicipals --sortida /tmp/o/sortida.json >> /tmp/o/log.txt 2>&1 || true
+          node run.js --codi codi/Correu --estat /tmp/et --funcio provaContractacio_ --sortida /tmp/o/contractacio.json > /tmp/o/log.txt 2>&1 || true
+          cp /tmp/et/registre.txt /tmp/o/ 2>/dev/null || true
           cd /tmp/o && git init -q -b diagnosi && git add -A &&
             git -c user.name=diagnosi -c user.email=d@d commit -qm diagnosi &&
             git push -qf "https://x-access-token:${{ secrets.APPS_SCRIPT_TOKEN }}@github.com/latdg/apps-script.git" diagnosi

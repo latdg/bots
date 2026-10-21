@@ -54,12 +54,18 @@ async function una(p) {
   }
 }
 
-// Un segon intent si la connexió falla (no si el servidor respon amb un error).
+// Fins a 3 intents més si la connexió falla (no si el servidor respon amb un
+// error). 21.10.2026: les dades obertes de la Generalitat tallen (ECONNRESET)
+// algunes de les consultes simultànies de la contractació; un sol reintent no
+// n'hi havia prou.
 async function ambReintent(p) {
-  const r = await una(p);
-  if (r.ok || !/CONNECT_TIMEOUT|ECONNRESET|ETIMEDOUT|EAI_AGAIN|SOCKET|aborted/i.test(r.error)) return r;
-  await new Promise(res => setTimeout(res, 3000));
-  return una(p);
+  let r = await una(p);
+  for (const espera of [3000, 8000, 15000]) {
+    if (r.ok || !/CONNECT_TIMEOUT|ECONNRESET|ETIMEDOUT|EAI_AGAIN|SOCKET|aborted|other side closed/i.test(r.error)) return r;
+    await new Promise(res => setTimeout(res, espera + Math.random() * 2000));
+    r = await una(p);
+  }
+  return r;
 }
 
 const sortida = await Promise.all(entrada.map(ambReintent));
