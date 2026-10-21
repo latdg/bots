@@ -1,0 +1,28 @@
+# TEMPORAL (21.10.2026): prova dels blocs de webs del tauler (projecte LaTdG) a GitHub.
+name: Diagnosi temporal
+on: workflow_dispatch
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: Europe/Madrid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: latdg/apps-script
+          token: ${{ secrets.APPS_SCRIPT_TOKEN }}
+          path: codi
+          sparse-checkout: LaTdG
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm install --no-audit --no-fund --silent
+      - name: Prova
+        run: |
+          mkdir -p /tmp/o /tmp/et
+          node run.js --projecte LaTdG --codi codi/LaTdG --estat /tmp/et --funcio taulerWebsGitHub --sortida /tmp/o/webs.json > /tmp/o/log.txt 2>&1 || true
+          cp /tmp/et/registre.txt /tmp/o/ 2>/dev/null || true
+          cd /tmp/o && git init -q -b diagnosi && git add -A &&
+            git -c user.name=diagnosi -c user.email=d@d commit -qm diagnosi &&
+            git push -qf "https://x-access-token:${{ secrets.APPS_SCRIPT_TOKEN }}@github.com/latdg/apps-script.git" diagnosi
