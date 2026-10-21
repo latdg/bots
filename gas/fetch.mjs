@@ -2,7 +2,7 @@
 // UrlFetchApp és síncron). Llegeix un JSON per l'entrada estàndard:
 //   [{url, method, headers, bodyB64, followRedirects, validateCerts}]
 // i escriu: [{ok, error, status, headers, bodyB64, url}]
-import { Agent } from "undici";
+import { Agent, setGlobalDispatcher } from "undici";
 
 const entrada = JSON.parse(await new Promise(r => {
   let s = "";
@@ -11,7 +11,10 @@ const entrada = JSON.parse(await new Promise(r => {
   process.stdin.on("end", () => r(s));
 }));
 
-const insegur = new Agent({ connect: { rejectUnauthorized: false } });
+// Com Google: espera prou a connectar i no obre massa connexions alhora al mateix servidor
+// (amb 9 consultes simultànies, les dades obertes de la Generalitat tallaven la connexió).
+setGlobalDispatcher(new Agent({ connect: { timeout: 60000 }, connections: 4 }));
+const insegur = new Agent({ connect: { rejectUnauthorized: false, timeout: 60000 }, connections: 4 });
 const TEMPS_MS = 180000;   // algunes consultes de dades obertes triguen més d'un minut
 
 async function una(p) {
@@ -51,5 +54,13 @@ async function una(p) {
   }
 }
 
-const sortida = await Promise.all(entrada.map(una));
+// Un segon intent si la connexió falla (no si el servidor respon amb un error).
+async function ambReintent(p) {
+  const r = await una(p);
+  if (r.ok || !/CONNECT_TIMEOUT|ECONNRESET|ETIMEDOUT|EAI_AGAIN|SOCKET|aborted/i.test(r.error)) return r;
+  await new Promise(res => setTimeout(res, 3000));
+  return una(p);
+}
+
+const sortida = await Promise.all(entrada.map(ambReintent));
 process.stdout.write(JSON.stringify(sortida));
