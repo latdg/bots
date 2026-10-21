@@ -1,0 +1,9 @@
+{
+  "name": "latdg-bots",
+  "private": true,
+  "description": "Executor del projecte Correu d'Apps Script a GitHub Actions (La TdG)",
+  "dependencies": {
+    "@xmldom/xmldom": "^0.8.10",
+    "undici": "^6.21.0"
+  }
+}

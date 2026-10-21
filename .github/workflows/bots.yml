@@ -1,0 +1,88 @@
+# =============================================================================
+# BOTS DEL PROJECTE CORREU — La TdG · 21.10.2026
+# Cada 30 minuts executa el codi del projecte Correu d'Apps Script (del repo
+# privat latdg/apps-script, tal com és) amb l'adaptador de run.js: bot de premsa,
+# defuncions, resum i extres del panell, Parlaments, subhastes i dades
+# municipals. Cada funció corre a les hores que tocaria amb els activadors de
+# Google. L'estat es desa a la branca privada estat-bots de latdg/apps-script.
+# Mentre l'Apps Script no hagi fet passarBotsAGitHub(), va en MODE PROVA i no
+# envia res. Els registres detallats NO surten aquí (el repo és públic): són a
+# estat-bots/registre.txt.
+# SECRET: APPS_SCRIPT_TOKEN (Contents: read and write sobre latdg/apps-script)
+# =============================================================================
+
+name: Bots del projecte Correu
+
+on:
+  schedule:
+    - cron: "5,35 * * * *"
+  workflow_dispatch:
+    inputs:
+      funcio:
+        description: "Funció concreta per executar ara (buit = les que toquin per l'hora)"
+        required: false
+        default: ""
+
+concurrency:
+  group: bots
+  cancel-in-progress: false
+
+jobs:
+  bots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TOKEN: ${{ secrets.APPS_SCRIPT_TOKEN }}
+      TZ: Europe/Madrid
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Codi del projecte Correu (repo privat)
+        uses: actions/checkout@v4
+        with:
+          repository: latdg/apps-script
+          token: ${{ secrets.APPS_SCRIPT_TOKEN }}
+          path: codi
+          sparse-checkout: Correu
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Dependències
+        run: npm install --no-audit --no-fund --silent
+
+      - name: Estat
+        run: |
+          URL="https://x-access-token:${TOKEN}@github.com/latdg/apps-script.git"
+          git clone -q --depth 1 --branch estat-bots "$URL" estat 2>/dev/null || mkdir -p estat
+
+      - name: Executar
+        env:
+          FUNCIO: ${{ inputs.funcio }}
+        run: |
+          if [ -n "$FUNCIO" ]; then
+            node run.js --codi codi/Correu --estat estat --funcio "$FUNCIO"
+          else
+            node run.js --codi codi/Correu --estat estat
+          fi
+
+      - name: Desar l'estat
+        if: always()
+        run: |
+          cd estat
+          [ -f estat.json ] || exit 0
+          URL="https://x-access-token:${TOKEN}@github.com/latdg/apps-script.git"
+          # props.json i fulls.json els escriu l'Apps Script: es prenen els més recents.
+          if git fetch -q --depth 1 "$URL" estat-bots 2>/dev/null; then
+            for f in props.json fulls.json; do git show FETCH_HEAD:$f > /tmp/$f 2>/dev/null && mv /tmp/$f $f || true; done
+          fi
+          mkdir -p /tmp/nou
+          for f in estat.json registre.txt props.json fulls.json; do [ -f $f ] && cp $f /tmp/nou/; done
+          cd /tmp/nou
+          git init -q -b estat-bots
+          git add -A
+          git -c user.name="La TdG (bots)" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Estat dels bots ($(date '+%d.%m.%Y %H.%M'))"
+          # Branca d'un sol commit: no acumula historial.
+          git push -qf "$URL" estat-bots
