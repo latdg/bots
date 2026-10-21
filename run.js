@@ -43,6 +43,7 @@ ACTIVADORS_PER_PROJECTE.Correu = [
   { funcio: "comprovarPremsaInstant", tipus: "minuts", minuts: 28 },
   { funcio: "actualitzarResumPanell", tipus: "hores", constant: "PANELL_HORES" },
   { funcio: "actualitzarExtresPanell", tipus: "hores", constant: "PANELL_HORES_EXTRES" },
+  { funcio: "actualitzarContractacioAnyPanell", tipus: "hores", constant: "CONTRACTACIO_ANY_HORES" },
   { funcio: "comprovarDefuncionsMati", tipus: "dia", constant: "HORA_ENVIAMENT_DEFUNCIONS" },
   { funcio: "comprovarParlaments", tipus: "cada", constant: "PARLAMENTS_INTERVAL_HORES" },
   { funcio: "comprovarSubhastes", tipus: "cada", constant: "SUBHASTES_INTERVAL_HORES" },
