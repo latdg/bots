@@ -38,7 +38,7 @@ const consola = console;
 // «minuts»: com a mínim tants minuts des de la darrera vegada (el workflow corre cada 15).
 const ACTIVADORS_PER_PROJECTE = {};
 ACTIVADORS_PER_PROJECTE.Correu = [
-  { funcio: "comprovarPremsaInstant", tipus: "minuts", minuts: 25 },
+  { funcio: "comprovarPremsaInstant", tipus: "minuts", minuts: 28 },
   { funcio: "actualitzarResumPanell", tipus: "hores", constant: "PANELL_HORES" },
   { funcio: "actualitzarExtresPanell", tipus: "hores", constant: "PANELL_HORES_EXTRES" },
   { funcio: "comprovarDefuncionsMati", tipus: "dia", constant: "HORA_ENVIAMENT_DEFUNCIONS" },
@@ -46,10 +46,9 @@ ACTIVADORS_PER_PROJECTE.Correu = [
   { funcio: "comprovarSubhastes", tipus: "cada", constant: "SUBHASTES_INTERVAL_HORES" },
   { funcio: "comprovarDadesMunicipals", tipus: "dia", constant: "DM_HORA_CONSULTA" }
 ];
-// Bot d'esports (projecte LaTdG): la funció mateixa només consulta la FCF i la FEB
-// quan hi ha algun partit dins la seva finestra (llegeix el calendari copiat).
-ACTIVADORS_PER_PROJECTE.LaTdG = [
-  { funcio: "comprovarResultatsEsportius", tipus: "sempre" }
+// Bot d'alertes (projecte alertes): el motor decideix cada mòdul per la seva freqüència.
+ACTIVADORS_PER_PROJECTE.alertes = [
+  { funcio: "executarIncidencies", tipus: "minuts", minuts: 9 }
 ];
 const ACTIVADORS = ACTIVADORS_PER_PROJECTE[PROJECTE] || [];
 

@@ -15,13 +15,16 @@
 
 name: Bots del projecte Correu
 
+# 21.10.2026: l'horari de GitHub no arriba (o arriba amb hores de retard). El
+# workflow fa un bucle de 5 h 30 min (bucle.sh) i es torna a llançar ell mateix.
+# L'horari queda com a reserva per reprendre la cadena si s'atura.
 on:
   schedule:
-    - cron: "5,20,35,50 * * * *"
+    - cron: "17 */2 * * *"
   workflow_dispatch:
     inputs:
       funcio:
-        description: "Funció concreta per executar ara (buit = les que toquin per l'hora)"
+        description: "Funció concreta per executar ara una vegada (buit = el bucle normal)"
         required: false
         default: ""
 
@@ -29,23 +32,29 @@ concurrency:
   group: bots
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   bots:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 350
     env:
       TOKEN: ${{ secrets.APPS_SCRIPT_TOKEN }}
       TZ: Europe/Madrid
     steps:
       - uses: actions/checkout@v4
 
-      - name: Codi del projecte Correu (repo privat)
+      - name: Codi dels projectes (repo privat)
         uses: actions/checkout@v4
         with:
           repository: latdg/apps-script
           token: ${{ secrets.APPS_SCRIPT_TOKEN }}
           path: codi
-          sparse-checkout: Correu
+          sparse-checkout: |
+            Correu
+            alertes
 
       - uses: actions/setup-node@v4
         with:
@@ -59,37 +68,14 @@ jobs:
           URL="https://x-access-token:${TOKEN}@github.com/latdg/apps-script.git"
           git clone -q --depth 1 --branch estat-bots "$URL" estat 2>/dev/null || mkdir -p estat
 
-      - name: Executar (projecte Correu)
+      - name: Executar
         env:
           FUNCIO: ${{ inputs.funcio }}
         run: |
-          if [ -n "$FUNCIO" ]; then
-            node run.js --codi codi/Correu --estat estat --funcio "$FUNCIO"
-          else
-            node run.js --codi codi/Correu --estat estat
-          fi
+          if [ -n "$FUNCIO" ]; then ./bucle.sh una "$FUNCIO"; else ./bucle.sh; fi
 
-      - name: Desar l'estat
-        if: always()
-        run: |
-          cd estat
-          [ -f estat.json ] || exit 0
-          URL="https://x-access-token:${TOKEN}@github.com/latdg/apps-script.git"
-          # props.json i fulls.json els escriu l'Apps Script: es prenen els més recents.
-          if git fetch -q --depth 1 "$URL" estat-bots 2>/dev/null; then
-            for f in props.json fulls.json esports/props.json; do
-              mkdir -p "$(dirname /tmp/r/$f)"
-              git show FETCH_HEAD:$f > /tmp/r/$f 2>/dev/null && mkdir -p "$(dirname $f)" && mv /tmp/r/$f $f || true
-            done
-          fi
-          mkdir -p /tmp/nou/esports
-          for f in estat.json registre.txt props.json fulls.json esports/estat.json esports/registre.txt esports/props.json; do
-            [ -f $f ] && cp $f /tmp/nou/$f
-          done
-          cd /tmp/nou
-          git init -q -b estat-bots
-          git add -A
-          git -c user.name="La TdG (bots)" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit -qm "Estat dels bots ($(date '+%d.%m.%Y %H.%M'))"
-          # Branca d'un sol commit: no acumula historial.
-          git push -qf "$URL" estat-bots
+      - name: Tornar-se a llançar
+        if: always() && inputs.funcio == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run bots.yml -R "${{ github.repository }}"
