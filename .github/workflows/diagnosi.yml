@@ -21,14 +21,20 @@ jobs:
       - name: Prova
         run: |
           mkdir -p /tmp/o /tmp/et
-          node run.js --codi codi/Correu --estat /tmp/et --funcio obtenirNoticiesWebsMunicipals --sortida /tmp/o/sortida.json > /tmp/o/log.txt 2>&1 || true
-          cp /tmp/et/registre.txt /tmp/o/ 2>/dev/null || true
-          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-          for u in https://www.labisbal.cat/noticies/ https://www.forallac.cat/noticies/ https://corca.cat/actualitat/noticies/; do
-            n=$(echo "$u" | cut -d/ -f3)
-            curl -sS -m 60 -A "$UA" -o "/tmp/o/$n.html" -w "$u %{http_code} %{size_download} %{time_total}\n" "$u" >> /tmp/o/curl.txt 2>&1 || echo "$u ERROR $?" >> /tmp/o/curl.txt
-            timeout 90 google-chrome --no-sandbox --headless=new --dump-dom "$u" > "/tmp/o/$n.chrome.html" 2>/dev/null; echo "$u chrome $(wc -c < /tmp/o/$n.chrome.html)" >> /tmp/o/curl.txt
-          done
+          cat > codi/Correu/zzProvaJina.js <<'JS'
+function provaJina_() {
+  const webs = [["https://www.labisbal.cat/noticies/","https://www.labisbal.cat",extreureNoticiesBisbal],
+                ["https://www.forallac.cat/noticies/","https://www.forallac.cat",extreureNoticiesForallac],
+                ["https://corca.cat/actualitat/noticies/","https://corca.cat",extreureNoticiesCorca]];
+  return webs.map(function (w) {
+    const h = descarregarHTMLMunicipalJina_(w[0]);
+    const n = h ? normalitzarNoticiesMunicipals(w[2](h, {url: w[0], base: w[1]})) : [];
+    return w[0] + " | html " + h.length + " | " + n.length + " notícies | " + n.slice(0,2).map(function(x){return x.dataFmt+" "+x.title}).join(" / ");
+  });
+}
+JS
+          node run.js --codi codi/Correu --estat /tmp/et --funcio provaJina_ --sortida /tmp/o/jina.json > /tmp/o/log.txt 2>&1 || true
+          node run.js --codi codi/Correu --estat /tmp/et --funcio obtenirNoticiesWebsMunicipals --sortida /tmp/o/sortida.json >> /tmp/o/log.txt 2>&1 || true
           cd /tmp/o && git init -q -b diagnosi && git add -A &&
             git -c user.name=diagnosi -c user.email=d@d commit -qm diagnosi &&
             git push -qf "https://x-access-token:${{ secrets.APPS_SCRIPT_TOKEN }}@github.com/latdg/apps-script.git" diagnosi
