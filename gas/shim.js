@@ -171,7 +171,7 @@ function crear(magatzem, opcions) {
       if (prova && esEscriptura(p.url, p.method)) {
         estadistiques.interceptades++;
         const cos = p.bodyB64 ? Buffer.from(p.bodyB64, "base64").toString("utf8") : "";
-        magatzem.interceptats.push({ quan: new Date().toISOString(), url: p.url.replace(/bot\d+:[\w-]+/, "bot***"), metode: p.method, cos: cos.slice(0, 6000) });
+        magatzem.interceptats.push({ quan: new Date().toISOString(), url: p.url.replace(/bot\d+:[\w-]+/, "bot***"), metode: p.method, cos: cos.slice(0, /api\.github\.com/i.test(p.url) ? 400000 : 6000) });
         const fals = /api\.github\.com/i.test(p.url) ? { content: { sha: "prova" }, commit: { sha: "prova" } } : { ok: true, result: {} };
         return { ok: true, status: p.method === "PUT" && /api\.github\.com/.test(p.url) ? 200 : 200, headers: { "Content-Type": "application/json" },
           bodyB64: Buffer.from(JSON.stringify(fals)).toString("base64") };
@@ -182,7 +182,7 @@ function crear(magatzem, opcions) {
     if (reals.length) {
       estadistiques.peticions += reals.length;
       const fill = spawnSync(process.execPath, [path.join(__dirname, "fetch.mjs")], {
-        input: JSON.stringify(reals), maxBuffer: 512 * 1024 * 1024, timeout: 180000, encoding: "utf8"
+        input: JSON.stringify(reals), maxBuffer: 512 * 1024 * 1024, timeout: 400000, encoding: "utf8"
       });
       if (fill.status !== 0) throw new Error("UrlFetchApp: " + (fill.stderr || "error desconegut").slice(0, 300));
       const respostes = JSON.parse(fill.stdout);

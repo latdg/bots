@@ -12,7 +12,7 @@ const entrada = JSON.parse(await new Promise(r => {
 }));
 
 const insegur = new Agent({ connect: { rejectUnauthorized: false } });
-const TEMPS_MS = 60000;
+const TEMPS_MS = 180000;   // algunes consultes de dades obertes triguen més d'un minut
 
 async function una(p) {
   const ctrl = new AbortController();
