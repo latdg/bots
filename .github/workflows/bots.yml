@@ -1,7 +1,7 @@
 # =============================================================================
 # BOTS DEL PROJECTE CORREU — La TdG · 21.10.2026
-# 21.10.2026: també el bot d'esports del projecte LaTdG (cada 15 minuts; només
-# consulta la FCF i la FEB quan hi ha partit). El bot de premsa, cada 30.
+# El bot d'esports NO és aquí: la FCF bloqueja les connexions des de GitHub
+# (es queda a l'Apps Script, amb un planificador que només corre si hi ha partit).
 # Executa el codi dels projectes d'Apps Script (del repo
 # privat latdg/apps-script, tal com és) amb l'adaptador de run.js: bot de premsa,
 # defuncions, resum i extres del panell, Parlaments, subhastes i dades
@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       funcio:
-        description: "Funció concreta per executar ara (buit = les que toquin per l'hora; esports:nom per al projecte LaTdG)"
+        description: "Funció concreta per executar ara (buit = les que toquin per l'hora)"
         required: false
         default: ""
 
@@ -45,9 +45,7 @@ jobs:
           repository: latdg/apps-script
           token: ${{ secrets.APPS_SCRIPT_TOKEN }}
           path: codi
-          sparse-checkout: |
-            Correu
-            LaTdG
+          sparse-checkout: Correu
 
       - uses: actions/setup-node@v4
         with:
@@ -66,21 +64,9 @@ jobs:
           FUNCIO: ${{ inputs.funcio }}
         run: |
           if [ -n "$FUNCIO" ]; then
-            [ "${FUNCIO#esports:}" = "$FUNCIO" ] && node run.js --codi codi/Correu --estat estat --funcio "$FUNCIO" || true
+            node run.js --codi codi/Correu --estat estat --funcio "$FUNCIO"
           else
             node run.js --codi codi/Correu --estat estat
-          fi
-
-      - name: Executar (bot d'esports, projecte LaTdG)
-        if: always()
-        env:
-          FUNCIO: ${{ inputs.funcio }}
-        run: |
-          [ -f estat/esports/props.json ] || { echo "El bot d'esports encara no s'ha passat a GitHub."; exit 0; }
-          if [ -n "$FUNCIO" ]; then
-            [ "${FUNCIO#esports:}" != "$FUNCIO" ] && node run.js --projecte LaTdG --codi codi/LaTdG --estat estat/esports --fulls estat/fulls.json --funcio "${FUNCIO#esports:}" || true
-          else
-            node run.js --projecte LaTdG --codi codi/LaTdG --estat estat/esports --fulls estat/fulls.json
           fi
 
       - name: Desar l'estat
