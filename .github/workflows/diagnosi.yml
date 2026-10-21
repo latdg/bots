@@ -1,0 +1,31 @@
+# TEMPORAL (21.10.2026): pol·len del PIA i registre estatal de punts de recàrrega.
+name: Diagnosi temporal
+on: workflow_dispatch
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fonts
+        run: |
+          mkdir -p /tmp/o
+          curl -sS -m 60 -D /tmp/o/pollen-capcaleres.txt "https://aerobiologia.cat/api/v0/forecast/girona/ca/xml" -o /tmp/o/pollen.xml || true
+          for i in 1 2 3; do curl -sS -m 300 -o /tmp/nap.xml -w "NAP %{http_code} %{size_download}\n" "https://infocar.dgt.es/datex2/v3/miterd/EnergyInfrastructureTablePublication/electrolineras.xml" >> /tmp/o/nap.txt 2>&1; [ "$(stat -c%s /tmp/nap.xml)" -gt 1000000 ] && break; sleep 30; done
+          if [ "$(stat -c%s /tmp/nap.xml)" -gt 1000000 ]; then
+            python3 - <<'PY'
+          import re
+          t = open("/tmp/nap.xml", encoding="utf-8", errors="replace").read()
+          pats = r"bisbal d|corç|corca|forallac|vulpellac|peratallada|cru[iï]lles|monells|casavells|canapost|sadurn[ií] de l"
+          blocs = re.split(r"(?=<[^>]*energyInfrastructureSite\b)", t)
+          out = open("/tmp/o/nap-zona.xml", "w")
+          n = 0
+          for b in blocs:
+              if re.search(pats, b, re.I):
+                  n += 1
+                  if n <= 4: out.write(b[:6000] + "\n\n=====\n\n")
+          open("/tmp/o/nap.txt", "a").write(f"llocs de la zona: {n} de {len(blocs)}\n")
+          PY
+          fi
+          cd /tmp/o && git init -q -b diagnosi && git add -A &&
+            git -c user.name=diagnosi -c user.email=d@d commit -qm diagnosi &&
+            git push -qf "https://x-access-token:${{ secrets.APPS_SCRIPT_TOKEN }}@github.com/latdg/apps-script.git" diagnosi
