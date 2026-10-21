@@ -1,0 +1,18 @@
+# TEMPORAL (21.10.2026): punts de recàrrega de l'ICAEN dels quatre municipis.
+name: Diagnosi temporal
+on: workflow_dispatch
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: ICAEN
+        run: |
+          mkdir -p /tmp/o; B="https://analisi.transparenciacatalunya.cat/resource/tb2m-m33b.json"
+          curl -sS -m 60 "$B?\$limit=1" > /tmp/o/exemple.json
+          curl -sS -m 60 -G "$B" --data-urlencode "\$where=codimun in('170221','170577','179026','179011')" --data-urlencode '$limit=500' > /tmp/o/codis.json
+          curl -sS -m 60 -G "$B" --data-urlencode "\$where=upper(municipi) like '%BISBAL%' OR upper(municipi) like '%CORÇÀ%' OR upper(municipi) like '%CORCA%' OR upper(municipi) like '%FORALLAC%' OR upper(municipi) like '%CRU%LLES%'" --data-urlencode '$limit=500' > /tmp/o/noms.json
+          curl -sS -m 60 -G "$B" --data-urlencode '$select=codimun,municipi,count(*)' --data-urlencode '$group=codimun,municipi' --data-urlencode "\$where=codiprov='17' OR starts_with(codimun,'17')" --data-urlencode '$limit=500' > /tmp/o/grups.json
+          cd /tmp/o && git init -q -b diagnosi && git add -A &&
+            git -c user.name=diagnosi -c user.email=d@d commit -qm diagnosi &&
+            git push -qf "https://x-access-token:${{ secrets.APPS_SCRIPT_TOKEN }}@github.com/latdg/apps-script.git" diagnosi
