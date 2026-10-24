@@ -47,7 +47,8 @@ ACTIVADORS_PER_PROJECTE.Correu = [
   { funcio: "comprovarDefuncionsMati", tipus: "dia", constant: "HORA_ENVIAMENT_DEFUNCIONS" },
   { funcio: "comprovarParlaments", tipus: "cada", constant: "PARLAMENTS_INTERVAL_HORES" },
   { funcio: "comprovarSubhastes", tipus: "cada", constant: "SUBHASTES_INTERVAL_HORES" },
-  { funcio: "comprovarDadesMunicipals", tipus: "dia", constant: "DM_HORA_CONSULTA" }
+  { funcio: "comprovarDadesMunicipals", tipus: "dia", constant: "DM_HORA_CONSULTA" },
+  { funcio: "recordatoriSots25", tipus: "minuts", minuts: 10 }   // recordatori per pujar el resultat del sots-25 (24.10.2026)
 ];
 // Bot d'alertes (projecte alertes): el motor decideix cada mòdul per la seva freqüència.
 ACTIVADORS_PER_PROJECTE.alertes = [
