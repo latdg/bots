@@ -122,8 +122,8 @@ tauler_webs() {
 }
 
 # DADES DEL GUIÓ (25.10.2026): premsa i defuncions per al guió del dia, a les
-# 5, les 6 i les 7 h (una vegada a cada hora). Vegeu guio.sh.
-GUIO_HORES=" 5 6 7 "
+# 4, les 5 i les 6 h (una vegada a cada hora; el guió surt cap a les 6.37 h). Vegeu guio.sh.
+GUIO_HORES=" 4 5 6 "
 dades_guio() {
   local h; h=$(date +%-H)
   case "$GUIO_HORES" in *" $h "*) ;; *) return 0 ;; esac
