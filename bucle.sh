@@ -132,6 +132,31 @@ dades_guio() {
   ./guio.sh || true
 }
 
+# AVÍS DE LA CASA (25.10.2026): cada dos dies a les 16 h, a partir del dilluns
+# 26.10.2026, un recordatori al bot privat d'infos (LaTdG_infos). Una sola vegada
+# per dia; en MODE PROVA no s'envia.
+CASA_INICI="2026-10-26"
+casa() {
+  [ "$(date +%-H)" -eq 16 ] || return 0
+  local dies
+  dies=$(( ( $(date -u -d "$(date +%F)" +%s) - $(date -u -d "$CASA_INICI" +%s) ) / 86400 ))
+  [ "$dies" -ge 0 ] && [ $((dies % 2)) -eq 0 ] || return 0
+  [ "$(cat estat/casa.txt 2>/dev/null)" = "$(date +%F)" ] && return 0
+  [ -f estat/props.json ] || return 0
+  local cfg
+  cfg=$(node -e '
+    const e=JSON.parse(require("fs").readFileSync("estat/props.json","utf8")); const p=e.props||{};
+    if (e.mode==="real" && p.TELEGRAM_BOT_TOKEN_INFOS && p.TELEGRAM_CHAT_ID_INFOS)
+      console.log(p.TELEGRAM_BOT_TOKEN_INFOS+" "+p.TELEGRAM_CHAT_ID_INFOS);')
+  date +%F > estat/casa.txt
+  [ -n "$cfg" ] || { echo "🧹 Avís de la casa: mode prova, no s'envia."; return 0; }
+  set -- $cfg
+  curl -s -o /dev/null "https://api.telegram.org/bot$1/sendMessage" \
+    --data-urlencode "chat_id=$2" \
+    --data-urlencode "text=🧹 Toca feina a casa: sacsejar el sofà, netejar la taula i passar l'aspiradora." \
+    && echo "🧹 Avís de la casa enviat." || echo "⚠️ No s'ha pogut enviar l'avís de la casa."
+}
+
 passada() {
   git -C codi pull -q 2>/dev/null || true   # sempre la darrera versió del codi
   node run.js --codi codi/Correu --estat estat || true
@@ -142,6 +167,7 @@ passada() {
   ps_diari
   tauler_webs
   dades_guio
+  casa
   rm -f estat/diagnosi.txt
   desa
 }
