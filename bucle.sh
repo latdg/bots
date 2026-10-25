@@ -121,6 +121,17 @@ tauler_webs() {
    && echo "🌐 Blocs de webs del tauler publicats." || echo "⚠️ No s'han pogut publicar els blocs de webs del tauler."
 }
 
+# DADES DEL GUIÓ (25.10.2026): premsa i defuncions per al guió del dia, a les
+# 5, les 6 i les 7 h (una vegada a cada hora). Vegeu guio.sh.
+GUIO_HORES=" 5 6 7 "
+dades_guio() {
+  local h; h=$(date +%-H)
+  case "$GUIO_HORES" in *" $h "*) ;; *) return 0 ;; esac
+  [ "$(cat estat/dades-guio.txt 2>/dev/null)" = "$(date +%F-%H)" ] && return 0
+  date +%F-%H > estat/dades-guio.txt
+  ./guio.sh || true
+}
+
 passada() {
   git -C codi pull -q 2>/dev/null || true   # sempre la darrera versió del codi
   node run.js --codi codi/Correu --estat estat || true
@@ -130,6 +141,7 @@ passada() {
   llamps
   ps_diari
   tauler_webs
+  dades_guio
   rm -f estat/diagnosi.txt
   desa
 }

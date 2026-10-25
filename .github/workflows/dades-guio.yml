@@ -1,0 +1,43 @@
+# =============================================================================
+# DADES DEL GUIÓ (a mà) — La TdG · 25.10.2026
+# Prepara ara mateix la premsa i les defuncions del guió i les publica a la
+# branca «dades-guio» (vegeu guio.sh). De matinada ja ho fa el bucle dels bots
+# (5, 6 i 7 h); aquest workflow és per provar-ho o refer-ho quan calgui.
+# SECRET: APPS_SCRIPT_TOKEN (el mateix que els bots)
+# =============================================================================
+name: Dades del guió
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  guio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: Europe/Madrid
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Codi del projecte LaTdG (repo privat)
+        uses: actions/checkout@v4
+        with:
+          repository: latdg/apps-script
+          token: ${{ secrets.APPS_SCRIPT_TOKEN }}
+          path: codi
+          sparse-checkout: |
+            LaTdG
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Dependències
+        run: npm install --no-audit --no-fund --silent
+
+      - name: Preparar i publicar
+        run: ./guio.sh
