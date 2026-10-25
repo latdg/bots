@@ -153,7 +153,8 @@ casa() {
   set -- $cfg
   curl -s -o /dev/null "https://api.telegram.org/bot$1/sendMessage" \
     --data-urlencode "chat_id=$2" \
-    --data-urlencode "text=🧹 Toca feina a casa: sacsejar el sofà, netejar la taula i passar l'aspiradora." \
+    --data-urlencode "text=🧹 Toca feina a casa: sacsejar el sofà, netejar la taula i passar l'aspiradora.
+Si no és cap d'aquestes, se'n poden fer d'altres: la roba del pis de dalt, o netejar i aspirar la cuina." \
     && echo "🧹 Avís de la casa enviat." || echo "⚠️ No s'ha pogut enviar l'avís de la casa."
 }
 
