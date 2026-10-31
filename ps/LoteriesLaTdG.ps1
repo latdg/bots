@@ -425,7 +425,7 @@ foreach ($id in $Jocs.Keys) {
         if ($s.combinacion) { $linies += ("Combinació: " + $s.combinacion) }
         $import = ImportPremi $s $n.tituloContenido
         if ($import) { $linies += ("Premi per encertant: " + $import) }
-        if ($data) { $linies += ("Sorteig del " + $data) }
+        if ($data) { $linies += ("Sorteig " + $(if ($data -match '^(01|11)\.') { "de l'" } else { "del " }) + $data) }   # 01.11.2026: de l'01
         $linies += ("🔗 " + $urlPremi)
 
         $enviat = EnviarTelegram ($linies -join "`n")
