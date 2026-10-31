@@ -121,6 +121,26 @@ tauler_webs() {
    && echo "🌐 Blocs de webs del tauler publicats." || echo "⚠️ No s'han pogut publicar els blocs de webs del tauler."
 }
 
+# AVISOS DE METEOCAT PER AL TAULER (31.10.2026): l'avisador d'incidències desa a
+# la propietat SMP_TAULER tots els avisos de l'SMP de la comarca cada vegada que
+# consulta Meteocat (com a molt cada 8 h). Si han canviat, es publiquen a la
+# branca «tauler-alertes» d'aquest repo i el tauler en directe (latdg/tauler) els
+# mostra al bloc d'avisos meteorològics. Cap consulta més a Meteocat.
+tauler_alertes() {
+  [ -f estat/alertes/estat.json ] || return 0
+  node -e '
+    const fs=require("fs"); const e=JSON.parse(fs.readFileSync("estat/alertes/estat.json","utf8"));
+    const s=(e.props||{}).SMP_TAULER; if (!s) process.exit(1);
+    fs.writeFileSync("/tmp/smp.json", s);' 2>/dev/null || return 0
+  cmp -s /tmp/smp.json estat/tauler-alertes.json && return 0
+  rm -rf /tmp/ta && mkdir -p /tmp/ta && cp /tmp/smp.json /tmp/ta/smp.json
+  (cd /tmp/ta && git init -q -b tauler-alertes && git add -A &&
+   git -c user.name="La TdG (tauler)" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+     commit -qm "Avisos de Meteocat per al tauler ($(date '+%d.%m.%Y %H.%M'))" && git push -qf "$REPO_BOTS" tauler-alertes) \
+   && cp /tmp/smp.json estat/tauler-alertes.json && echo "🌦️ Avisos de Meteocat del tauler publicats." \
+   || echo "⚠️ No s'han pogut publicar els avisos de Meteocat del tauler."
+}
+
 # DADES DEL GUIÓ (25.10.2026): premsa i defuncions per al guió del dia, a les
 # 4, les 5 i les 6 h (una vegada a cada hora; el guió surt cap a les 6.37 h). Vegeu guio.sh.
 GUIO_HORES=" 4 5 6 "
@@ -167,6 +187,7 @@ passada() {
   llamps
   ps_diari
   tauler_webs
+  tauler_alertes
   dades_guio
   casa
   rm -f estat/diagnosi.txt
