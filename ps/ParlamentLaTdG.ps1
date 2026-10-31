@@ -94,6 +94,9 @@ $Termes = [ordered]@{
   "Sant Cebrià de Lledó"   = "Sant Cebrià de Lledó (Cruïlles, Monells i Sant Sadurní de l'Heura)"
   "Els Metges"             = "els Metges (Cruïlles, Monells i Sant Sadurní de l'Heura)"
   "Santa Pellaia"          = "Santa Pellaia (Cruïlles, Monells i Sant Sadurní de l'Heura)"
+  # Ullastret (31.10.2026). La primera cerca d'un terme nou només registra el que
+  # ja hi ha, sense avisar; a partir d'aleshores avisa de les novetats.
+  "Ullastret"              = "Ullastret"
   # Espai natural
   "Gavarres"               = "les Gavarres"
 }
