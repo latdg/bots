@@ -143,7 +143,9 @@ tauler_alertes() {
 
 # DADES DEL GUIÓ (25.10.2026): premsa i defuncions per al guió del dia, a les
 # 4, les 5 i les 6 h (una vegada a cada hora; el guió surt cap a les 6.37 h). Vegeu guio.sh.
-GUIO_HORES=" 4 5 6 "
+# 02.11.2026: també cada dues hores durant el dia (8 a 22 h), perquè les defuncions
+# que Mémora publica de dia arribin al tauler el mateix dia; el guió ja ha sortit.
+GUIO_HORES=" 4 5 6 8 10 12 14 16 18 20 22 "
 dades_guio() {
   local h; h=$(date +%-H)
   case "$GUIO_HORES" in *" $h "*) ;; *) return 0 ;; esac
