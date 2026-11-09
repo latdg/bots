@@ -59,6 +59,7 @@ EQUIPS = {
 }
 DIES = ["dl", "dt", "dc", "dj", "dv", "ds", "dg"]
 DIVENDRES_HORA = 17
+DILLUNS_HORA = 18                   # 09.11.2026: recordatori setmanal del fitxer de la FCF
 RESULTAT_DESPRES_MIN = 120          # primera pregunta, 2 h després de l'inici
 RESULTAT_SEGONA_MIN = 180           # segona i última, 3 h després
 FINESTRA_PUBLICACIO_MIN = 8 * 60    # el bot d'esports publica fins a 8 h després de l'inici
@@ -457,6 +458,18 @@ class Bot:
                        {"text": "⏸ Ajornat", "callback_data": self.accio(op="ajornat", clau=p["clau"])}]]
             self.tg.envia(linia_partit(EQUIPS[eid]["nom"], p), botons=botons)
 
+    def dilluns(self):
+        """Cada dilluns a les 18 h: que baixi el fitxer de la FCF (classificacions i horaris)."""
+        a = ara()
+        avui = a.date().isoformat()
+        if a.weekday() != 0 or a.hour < DILLUNS_HORA or self.estat.get("dilluns") == avui:
+            return
+        self.estat["dilluns"] = avui
+        self.tg.envia("📥 TOCA EL FITXER DE LA FCF\nLa jornada ja és tancada. Per posar al dia les classificacions i els "
+                      "horaris:\n1. Obre www.fcf.cat (al portàtil, o amb Chrome al mòbil).\n"
+                      "2. Toca el marcador «Futbol → La TdG».\n"
+                      "3. Envia'm el fitxer futbol-tdg.json (o puja'l a la pàgina d'esports) i toca «✅ Desa'l».")
+
     def recordatoris(self):
         a = ara()
         avui = a.date().isoformat()
@@ -713,6 +726,7 @@ class Bot:
                         except Exception:
                             pass
                 self.divendres()
+                self.dilluns()
                 self.recordatoris()
                 self.concilia()
                 self.desa_estat()
