@@ -59,6 +59,8 @@ EQUIPS = {
 }
 DIES = ["dl", "dt", "dc", "dj", "dv", "ds", "dg"]
 DIVENDRES_HORA = 17
+LLISTA_HORA_LIMIT = 19              # divendres: la llista surt igualment a aquesta hora
+LLISTA_ESPERA_MIN = 4               # minuts després de desar el fitxer (que el tauler s'actualitzi)
 DILLUNS_HORA = 18                   # 09.11.2026: recordatori setmanal del fitxer de la FCF
 RESULTAT_DESPRES_MIN = 120          # primera pregunta, 2 h després de l'inici
 RESULTAT_SEGONA_MIN = 180           # segona i última, 3 h després
@@ -438,20 +440,40 @@ class Bot:
 
     # ---- tasques programades ----
     def divendres(self, forcat=False):
+        """Divendres a les 17 h: demana el fitxer de la FCF. La llista dels partits del cap de
+        setmana (per comprovar els horaris) arriba uns minuts després de desar-lo, amb les
+        dades al dia; si a les 19 h encara no ha arribat cap fitxer, s'envia igualment."""
         a = ara()
         avui = a.date().isoformat()
-        if not forcat and (a.weekday() != 4 or a.hour < DIVENDRES_HORA or self.estat["divendres"] == avui):
+        if forcat:
+            return self.llista_cap_de_setmana()
+        if a.weekday() != 4 or a.hour < DIVENDRES_HORA:
             return
+        if self.estat["divendres"] != avui:
+            self.estat["divendres"] = avui
+            self.estat["llista"] = {"dia": avui, "quan": (a.replace(hour=LLISTA_HORA_LIMIT, minute=0, second=0)).isoformat()}
+            self.tg.envia("📥 TOCA EL FITXER DE LA FCF (horaris del cap de setmana)\n"
+                          "1. Obre www.fcf.cat (al portàtil, o amb Chrome al mòbil).\n"
+                          "2. Toca el marcador «Futbol → La TdG».\n"
+                          "3. Envia'm el fitxer futbol-tdg.json (o puja'l a la pàgina d'esports) i toca «✅ Desa'l».\n"
+                          "Uns minuts després et passaré els partits per confirmar els horaris (a les 19 h, si no "
+                          "m'arriba cap fitxer).")
+            return
+        llista = self.estat.get("llista") or {}
+        if llista.get("dia") == avui and not llista.get("fet") and a.isoformat() >= llista.get("quan", "9"):
+            llista["fet"] = True
+            self.llista_cap_de_setmana()
+
+    def llista_cap_de_setmana(self):
+        a = ara()
+        avui = a.date().isoformat()
         fi = (a.date() + dt.timedelta(days=6 - a.weekday())).isoformat()   # fins diumenge
         partits = [(eid, p) for eid, p in partits_futbol(self.dades_esports(True))
                    if avui <= (p.get("data") or "") <= fi and not p.get("resultat")]
-        if not forcat:
-            self.estat["divendres"] = avui
         if not partits:
             self.tg.envia(f"⚽ FUTBOL DEL CAP DE SETMANA\nNo hi ha cap partit de futbol previst fins a {data_ca(fi)}.")
             return
-        self.tg.envia("⚽ FUTBOL DEL CAP DE SETMANA\nComprova si els horaris són correctes. Si vols, abans actualitza "
-                      "les dades amb el marcador «Futbol → La TdG» a www.fcf.cat i envia'm el fitxer.")
+        self.tg.envia("⚽ FUTBOL DEL CAP DE SETMANA\nComprova si els horaris són correctes.")
         for eid, p in partits:
             botons = [[{"text": "✅ Correcte", "callback_data": self.accio(op="correcte", clau=p["clau"])},
                        {"text": "✏️ Canvia l'hora", "callback_data": self.accio(op="canvia", clau=p["clau"])},
@@ -625,6 +647,9 @@ class Bot:
                 log("⚠️ desa_fcf:", type(e).__name__, str(e)[:160])
                 return self.tg.envia("❌ No s'ha pogut desar. Puja el fitxer a la pàgina d'esports: " + PAGINA)
             acc["fet"] = True
+            llista = self.estat.get("llista") or {}
+            if llista.get("dia") == ara().date().isoformat() and not llista.get("fet"):
+                llista["quan"] = (ara() + dt.timedelta(minutes=LLISTA_ESPERA_MIN)).isoformat()
             return self.tg.edita(missatge_id, text_original + "\n\n✅ Desat. En un parell de minuts, el tauler, el guió "
                                  "i l'avisador ja van amb aquestes dades.")
         eid, p = self.partit(acc.get("clau"))
