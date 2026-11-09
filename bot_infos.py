@@ -68,8 +68,13 @@ def ara():
     return dt.datetime.now(TZ)
 
 
+def amaga(text):
+    """Treu qualsevol clau de bot de Telegram d'un text (el registre és públic)."""
+    return re.sub(r"bot\d+:[A-Za-z0-9_-]+", "bot***", str(text))
+
+
 def log(*a):
-    print(ara().strftime("%H.%M"), *a, flush=True)
+    print(ara().strftime("%H.%M"), *(amaga(x) for x in a), flush=True)
 
 
 # -----------------------------------------------------------------------------
@@ -555,9 +560,11 @@ class Bot:
             return self.tg.envia(f"He rebut «{nom}», però aquest bot només fa servir el fitxer futbol-tdg.json "
                                  "del marcador «Futbol → La TdG».")
         try:
-            f = json.loads(self.tg.baixa(doc["file_id"]).decode("utf-8"))
-        except Exception:
-            f = None
+            f = json.loads(self.tg.baixa(doc["file_id"]).decode("utf-8-sig"))
+        except Exception as e:
+            log("⚠️ baixada del fitxer:", type(e).__name__, str(e)[:160])
+            return self.tg.envia(f"❌ No he pogut llegir «{nom}» ({type(e).__name__}: {amaga(e)[:120]}). "
+                                 "Torna-ho a provar d'aquí a un moment o puja'l a la pàgina d'esports: " + PAGINA)
         if not fitxer_valid(f):
             return self.tg.envia(f"«{nom}» no és el fitxer del marcador de la FCF (futbol-tdg.json).")
         try:
@@ -602,7 +609,7 @@ class Bot:
                 modifica(self.gh, TAULER, F_FCF, substitueix, "Futbol: fitxer de la FCF enviat al bot latdg_infos",
                          perdefecte={})
             except Exception as e:
-                log("⚠️ desa_fcf:", type(e).__name__)
+                log("⚠️ desa_fcf:", type(e).__name__, str(e)[:160])
                 return self.tg.envia("❌ No s'ha pogut desar. Puja el fitxer a la pàgina d'esports: " + PAGINA)
             acc["fet"] = True
             return self.tg.edita(missatge_id, text_original + "\n\n✅ Desat. En un parell de minuts, el tauler, el guió "
