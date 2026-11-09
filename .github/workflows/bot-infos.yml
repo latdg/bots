@@ -1,0 +1,57 @@
+# =============================================================================
+# BOT LATDG_INFOS: FUTBOL DES DE CASA — La TdG · 09.11.2026
+# Mentre la FCF bloquegi els servidors (i no hi hagi la Raspberry Pi): el bot
+# latdg_infos rep el fitxer del marcador «Futbol → La TdG», pregunta els
+# horaris el divendres a les 17 h i el resultat 2 h després de cada partit.
+# Codi: bot_infos.py. Les claus són les del projecte Correu i del projecte
+# d'esports (branca privada estat-bots de latdg/apps-script); l'estat del bot
+# es desa a la branca privada bot-infos del mateix repo.
+# Bucle de 5 h 40 min que es torna a llançar sol (com bots.yml); l'horari
+# queda de reserva per si la cadena s'atura.
+# SECRET: APPS_SCRIPT_TOKEN
+# =============================================================================
+name: Bot latdg_infos (futbol)
+
+on:
+  schedule:
+    - cron: "41 */2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: bot-infos
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    env:
+      TZ: Europe/Madrid
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install --quiet requests
+
+      - name: Claus (repo privat)
+        env:
+          TOKEN: ${{ secrets.APPS_SCRIPT_TOKEN }}
+        run: git clone -q --depth 1 --branch estat-bots "https://x-access-token:${TOKEN}@github.com/latdg/apps-script.git" estat
+
+      - name: Bot
+        env:
+          APPS_SCRIPT_TOKEN: ${{ secrets.APPS_SCRIPT_TOKEN }}
+        run: python bot_infos.py --props estat/props.json --props-esports estat/esports/props.json
+
+      - name: Tornar-se a llançar
+        if: success()   # si falla, no es relleva en bucle: ho reprèn l'horari
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run bot-infos.yml -R "${{ github.repository }}"
