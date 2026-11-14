@@ -112,6 +112,136 @@ def linia_partit(eq_nom, p):
     return t
 
 
+# -----------------------------------------------------------------------------
+# Avís al canal públic (14.11.2026): ajornaments i suspensions
+# El bot d'esports (Apps Script) només publica resultats amb l'acta tancada; un
+# partit ajornat o suspès no en té mai, i per això no sortia cap avís. Ara, quan
+# es marca ⏸ Ajornat o 🚫 Suspès aquí, el bot de La Torre de Guaita ho publica
+# al canal (Telegram i WhatsApp), amb el mateix format i els mateixos noms que
+# els avisos de resultat (AvisadorEsportsLaTdG.js).
+# -----------------------------------------------------------------------------
+NOMS_RIVALS_FCF = {   # els mateixos que NOMS_RIVALS_FCF de l'avisador
+    "VILOBI FUTBOL CLUB A": "Vilobí Futbol Club A",
+    "ARBUCIES,CLUB FUTBOL A": "Arbúcies, Club Futbol A",
+    "BORRASSA, F.C. B": "Borrassà, F.C. B",
+    "FORTIA, C.E. A": "Fortià, C.E. A",
+}
+_MINUSCULA = {"de", "del", "dels", "la", "les", "el", "els", "i", "y", "en", "al", "los", "las"}
+_SIGLES = {"CF", "CE", "UE", "CD", "FC", "AE", "UD", "CB", "AD", "EF", "CP", "SD", "RCD", "CN", "EC", "CEM", "UB"}
+
+
+def _norm(s):
+    import unicodedata
+    s = unicodedata.normalize("NFD", str(s or ""))
+    return re.sub(r"[^a-z0-9]", "", "".join(c for c in s if unicodedata.category(c) != "Mn").lower())
+
+
+def _paraula_titol(w, primer):
+    if not w:
+        return w
+    if w.find("-") > 0:
+        return "-".join(_paraula_titol(x, False) for x in w.split("-"))
+    if re.fullmatch(r"(MPAL|MUNICIPAL)\.?", w):
+        return "Municipal"
+    if re.fullmatch(r"([A-ZÀ-Ý]\.)+[A-ZÀ-Ý]?\.?", w) or len(w) == 1 or w in _SIGLES or \
+            re.fullmatch(r"II|III|IV|VI|VII|VIII|IX|XI|XII", w):
+        return w
+    baixa = w.lower()
+    if not primer and baixa in _MINUSCULA:
+        return baixa
+    ap = re.fullmatch(r"(d'|l'|s'|n')(.+)", baixa)
+    if ap:
+        return (ap.group(1).capitalize() if primer else ap.group(1)) + ap.group(2).capitalize()
+    return baixa.capitalize()
+
+
+def titol_ca(text):
+    """Port de titolCasCatala_ de l'avisador: «ARO, C.E. A» → «Aro, C.E. A»."""
+    t = re.sub(r"\s+", " ", re.sub(r"[´`’‘]", "'", str(text or ""))).strip()
+    if not t:
+        return ""
+    majuscules = t == t.upper()
+    t = re.sub(r"\bmpal\b\.?", "MUNICIPAL" if majuscules else "Municipal", t, flags=re.I)
+    if not majuscules:
+        return t
+    t = re.sub(r",(?=\S)", ", ", t)
+    parts = []
+    for i, tok in enumerate(t.split(" ")):
+        m = re.fullmatch(r"(\(*)(.*?)([),;]*)", tok)
+        parts.append(m.group(1) + _paraula_titol(m.group(2), i == 0) + m.group(3))
+    r = " ".join(parts)
+    return r[:1].upper() + r[1:]
+
+
+def nom_rival_public(nom):
+    for k, v in NOMS_RIVALS_FCF.items():
+        if _norm(k) == _norm(nom):
+            return v
+    return titol_ca(nom)
+
+
+def nom_camp_public(camp):
+    n = _norm(camp)
+    if n.startswith("camp") and re.search(r"delabisbal(demporda)?$", n):
+        return "Camp de Futbol Pere Plaja de la Bisbal"
+    return titol_ca(camp)
+
+
+def missatge_estat_public(eid, p, estat):
+    """Mateix esquelet que «🏁 FINAL DEL PARTIT» de l'avisador d'esports."""
+    nostre, rival = EQUIPS[eid]["nom"], nom_rival_public(p.get("rival"))
+    local, visitant = (nostre, rival) if p.get("localVisitant") == "Local" else (rival, nostre)
+    cap = "⏸ PARTIT AJORNAT" if estat == "Ajornat" else "🚫 PARTIT SUSPÈS"
+    comp = re.sub(r"\b(\d+)A\b", r"\1a", ", ".join(x for x in ((p.get("competicio") or "").upper(),
+                                                                (p.get("grup") or "").upper()) if x))   # «4a CATALANA, GRUP 5»
+    linies = [cap, "⚽ " + comp + (f" - jornada {p['jornada']}" if p.get("jornada") else ""), f"{local} - {visitant}"]
+    dh = []
+    try:
+        dh.append(dt.date.fromisoformat(p.get("data") or "").strftime("%d.%m.%Y"))
+    except ValueError:
+        pass
+    if re.fullmatch(r"\d{2}:\d{2}", p.get("hora") or "") and p["hora"] != "00:00":
+        dh.append("Hora d'inici prevista: " + p["hora"].replace(":", ".") + " h")
+    if dh:
+        linies.append(" - ".join(dh))
+    if p.get("camp"):
+        linies.append(nom_camp_public(p["camp"]))
+    return "\n".join(linies)
+
+
+class CanalPublic:
+    """El bot de La Torre de Guaita: canal de Telegram i canal de WhatsApp (Whapi)."""
+
+    def __init__(self, props):
+        g = lambda k: str(props.get(k) or "").strip()
+        self.tg_token, self.tg_chat = g("TELEGRAM_BOT_TOKEN_ESPORTS"), g("TELEGRAM_CHAT_ID_ESPORTS")
+        self.wa_token, self.wa_desti = g("WHAPI_TOKEN"), g("WHATSAPP_DESTI")
+
+    def envia(self, text):
+        """Torna (telegram_ok, whatsapp_ok); cada canal va per separat."""
+        tg = wa = False
+        if self.tg_token and self.tg_chat:
+            try:
+                r = requests.post(f"https://api.telegram.org/bot{self.tg_token}/sendMessage", timeout=30,
+                                  json={"chat_id": self.tg_chat, "text": text, "disable_web_page_preview": False})
+                tg = bool(r.json().get("ok"))
+                if not tg:
+                    log("⚠️ canal Telegram:", r.status_code, r.text[:160])
+            except Exception as e:
+                log("⚠️ canal Telegram:", type(e).__name__, str(e)[:120])
+        if self.wa_token and self.wa_desti:
+            try:
+                r = requests.post("https://gate.whapi.cloud/messages/text", timeout=30,
+                                  headers={"Authorization": "Bearer " + self.wa_token},
+                                  json={"to": self.wa_desti, "body": text})
+                wa = 200 <= r.status_code < 300
+                if not wa:
+                    log("⚠️ canal WhatsApp:", r.status_code, r.text[:160])
+            except Exception as e:
+                log("⚠️ canal WhatsApp:", type(e).__name__, str(e)[:120])
+        return tg, wa
+
+
 def llegeix_hora(text, data_base):
     """«18.30», «14.11 18.30», «ds 14.11.2026 18:30» → (data_iso, «HH:MM») o None."""
     t = re.sub(r"\b(dl|dt|dc|dj|dv|ds|dg)\b\.?", " ", text.lower()).strip()
@@ -390,8 +520,9 @@ def correccio(manual, eid, p, **camps):
 # El bot
 # -----------------------------------------------------------------------------
 class Bot:
-    def __init__(self, tg, gh_tauler, gh_estat):
+    def __init__(self, tg, gh_tauler, gh_estat, canal=None):
         self.tg, self.gh, self.ghe = tg, gh_tauler, gh_estat
+        self.canal = canal
         self.estat, self.sha_estat, self.estat_brut = {}, None, ""
         self.esports, self.esports_quan = None, 0
         self.darrera_conciliacio = 0
@@ -401,7 +532,7 @@ class Bot:
         self.ghe.assegura_branca(ESTAT_REPO, ESTAT_BRANCA)
         d, sha = self.ghe.llegeix(ESTAT_REPO, ESTAT_CAMI, ESTAT_BRANCA)
         self.estat, self.sha_estat = d or {}, sha
-        for k, v in (("offset", 0), ("accions", {}), ("preguntes", {}), ("recordatoris", {}), ("divendres", "")):
+        for k, v in (("offset", 0), ("accions", {}), ("preguntes", {}), ("recordatoris", {}), ("divendres", ""), ("publicats", {})):
             self.estat.setdefault(k, v)
         self.estat_brut = json.dumps(self.estat, sort_keys=True)
 
@@ -414,6 +545,8 @@ class Bot:
         for k in ("accions", "preguntes"):
             self.estat[k] = {a: b for a, b in self.estat[k].items() if b.get("quan", "") >= limit}
         self.estat["recordatoris"] = {a: b for a, b in self.estat["recordatoris"].items() if b.get("quan", "") >= limit}
+        limit_pub = (ara() - dt.timedelta(days=60)).isoformat()
+        self.estat["publicats"] = {a: b for a, b in self.estat["publicats"].items() if b.get("quan", "") >= limit_pub}
         try:
             self.sha_estat = self.ghe.desa(ESTAT_REPO, ESTAT_CAMI, self.estat, self.sha_estat, "Estat del bot infos", ESTAT_BRANCA)
         except Conflicte:
@@ -712,7 +845,23 @@ class Bot:
         self.tanca_preguntes(p["clau"], "resultat")
         self.estat["recordatoris"][p["clau"]] = {"n": 9, "fet": True, "quan": ara().isoformat()}
         self.tg.envia(f"{'⏸' if estat == 'Ajornat' else '🚫'} {EQUIPS[eid]['nom']}: {nom_partit(EQUIPS[eid]['nom'], p)} "
-                      f"queda com a {estat.lower()} al tauler i al guió.")
+                      f"queda com a {estat.lower()} al tauler i al guió." + self.publica_estat(eid, p, estat))
+
+    def publica_estat(self, eid, p, estat):
+        """Publica l'ajornament o la suspensió al canal de La Torre de Guaita (un sol cop per partit i estat)."""
+        clau = f"{p['clau']}:{estat}"
+        if (self.estat["publicats"].get(clau) or {}).get("fet"):
+            return "\nAl canal de La Torre de Guaita ja s'havia publicat."
+        if not self.canal:
+            return "\n⚠️ No s'ha pogut publicar al canal de La Torre de Guaita (falten les claus del bot d'esports)."
+        tg, wa = self.canal.envia(missatge_estat_public(eid, p, estat))
+        if tg or wa:
+            self.estat["publicats"][clau] = {"fet": True, "quan": ara().isoformat()}
+        if tg and wa:
+            return "\nPublicat al canal de La Torre de Guaita (Telegram i WhatsApp)."
+        if tg or wa:
+            return f"\nPublicat al canal de La Torre de Guaita només per {'Telegram' if tg else 'WhatsApp'}; l'altre ha fallat."
+        return "\n⚠️ No s'ha pogut publicar al canal de La Torre de Guaita (han fallat Telegram i WhatsApp)."
 
     def desa_correccio(self, eid, p, missatge, **camps):
         def canvi(man):
@@ -790,6 +939,15 @@ def proves():
     correccio(man, "atletic_bisbalenc", p, data="2026-11-15", hora="18:00")
     assert len(man["equips"]["atletic_bisbalenc"]["partits"]) == 1
     assert nom_partit("Atlètic Bisbalenc", p) == "SANTJOANENC – ATLÈTIC BISBALENC"
+    pa = {"clau": "FCF-4140488", "competicio": "4a Catalana", "grup": "Grup 5", "jornada": "7", "data": "2026-11-14",
+          "hora": "17:15", "localVisitant": "Visitant", "rival": "ARO, C.E. A",
+          "camp": "CAMP DE FUTBOL MPAL. DE CASTELL D´ARO"}
+    assert missatge_estat_public("monells_b", pa, "Ajornat") == (
+        "⏸ PARTIT AJORNAT\n⚽ 4a CATALANA, GRUP 5 - jornada 7\nAro, C.E. A - Monells B\n"
+        "14.11.2026 - Hora d'inici prevista: 17.15 h\nCamp de Futbol Municipal de Castell d'Aro"), \
+        missatge_estat_public("monells_b", pa, "Ajornat")
+    assert nom_rival_public("VILOBI FUTBOL CLUB A") == "Vilobí Futbol Club A"
+    assert nom_camp_public("CAMP DE FUTBOL MPAL. DE LA BISBAL D'EMPORDA") == "Camp de Futbol Pere Plaja de la Bisbal"
     print("Proves: totes bé.")
 
 
@@ -800,7 +958,8 @@ def main():
     props = json.load(open(arg("--props")))["props"]
     props_esports = json.load(open(arg("--props-esports")))["props"]
     tg = Telegram(props["TELEGRAM_BOT_TOKEN_INFOS"].strip(), props["TELEGRAM_CHAT_ID_INFOS"].strip())
-    bot = Bot(tg, GitHub(props_esports["TAULER_GITHUB_TOKEN"].strip()), GitHub(os.environ["APPS_SCRIPT_TOKEN"]))
+    bot = Bot(tg, GitHub(props_esports["TAULER_GITHUB_TOKEN"].strip()), GitHub(os.environ["APPS_SCRIPT_TOKEN"]),
+              CanalPublic(props_esports))
     log("Bot latdg_infos (futbol) en marxa.")
     bot.bucle()
 
