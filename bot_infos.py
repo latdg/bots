@@ -951,10 +951,28 @@ def proves():
     print("Proves: totes bé.")
 
 
+def publica_estat_puntual(clau, estat, props_esports):
+    """Publica al canal l'ajornament o la suspensió d'un partit (clau «FCF-…» del tauler)."""
+    estat = "Suspès" if re.match(r"susp", estat, re.I) else "Ajornat"
+    esports, _ = GitHub(props_esports["TAULER_GITHUB_TOKEN"].strip()).llegeix(TAULER, F_ESPORTS)
+    for eid, p in partits_futbol(esports):
+        if p.get("clau") == clau:
+            tg, wa = CanalPublic(props_esports).envia(missatge_estat_public(eid, p, estat))
+            log(f"Publicació puntual {clau} ({estat}) — Telegram: {'OK' if tg else 'ERROR'} | WhatsApp: {'OK' if wa else 'ERROR'}")
+            if not (tg or wa):
+                sys.exit(1)
+            return
+    log(f"No trobo el partit {clau} al tauler.")
+    sys.exit(1)
+
+
 def main():
     if "--prova" in sys.argv:
         return proves()
     arg = lambda n: sys.argv[sys.argv.index(n) + 1]
+    if "--publica-estat" in sys.argv:   # 14.11.2026: publicació puntual (workflow «Publicar ajornament»)
+        return publica_estat_puntual(arg("--publica-estat"), arg("--estat"),
+                                     json.load(open(arg("--props-esports")))["props"])
     props = json.load(open(arg("--props")))["props"]
     props_esports = json.load(open(arg("--props-esports")))["props"]
     tg = Telegram(props["TELEGRAM_BOT_TOKEN_INFOS"].strip(), props["TELEGRAM_CHAT_ID_INFOS"].strip())

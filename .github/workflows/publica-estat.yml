@@ -1,0 +1,45 @@
+# =============================================================================
+# PUBLICAR UN AJORNAMENT O UNA SUSPENSIÓ — La TdG · 14.11.2026
+# Publica al canal de La Torre de Guaita (Telegram i WhatsApp) que un partit de
+# futbol s'ha ajornat o suspès, per als casos que no hagin sortit sols des del
+# bot latdg_infos. Es llança a mà (Run workflow) amb la clau del partit del
+# tauler (p. ex. FCF-4140488) i l'estat.
+# SECRET: APPS_SCRIPT_TOKEN
+# =============================================================================
+name: Publicar ajornament o suspensió
+
+on:
+  workflow_dispatch:
+    inputs:
+      clau:
+        description: "Clau del partit al tauler (FCF-…)"
+        required: true
+      estat:
+        description: "Ajornat o Suspès"
+        required: true
+        default: "Ajornat"
+
+permissions:
+  contents: read
+
+jobs:
+  publica:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TZ: Europe/Madrid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet requests
+      - name: Claus (repo privat)
+        env:
+          TOKEN: ${{ secrets.APPS_SCRIPT_TOKEN }}
+        run: git clone -q --depth 1 --branch estat-bots "https://x-access-token:${TOKEN}@github.com/latdg/apps-script.git" estat
+      - name: Publicar
+        env:
+          CLAU: ${{ inputs.clau }}
+          ESTAT: ${{ inputs.estat }}
+        run: python bot_infos.py --publica-estat "$CLAU" --estat "$ESTAT" --props-esports estat/esports/props.json
