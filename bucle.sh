@@ -202,8 +202,30 @@ if [ "${1:-}" = "una" ]; then
   exit 0
 fi
 
+# L'AGUAIT BLOCAT (18.11.2026): de tant en tant el servidor de L'Aguait deixa de
+# respondre a la màquina de GitHub on corre el bucle (refusa la connexió o no
+# torna l'RSS), i les notícies no surten al canal fins que el bucle acaba,
+# hores més tard. Abans de cada lectura de premsa (minuts 10-14 i 40-44) es
+# comprova l'RSS; si falla dues vegades i el bucle ja fa més de 30 minuts que
+# corre, plega: el workflow es torna a llançar en una màquina nova (una altra
+# adreça) i les notícies pendents surten a la lectura següent.
+aguait_blocat() {
+  case "$(date +%M)" in 1[0-4]|4[0-4]) ;; *) return 1 ;; esac
+  [ "$SECONDS" -gt 1800 ] || return 1
+  local i
+  for i in 1 2; do
+    curl -s -m 30 -A "Mozilla/5.0" https://laguait.cat/feed/ 2>/dev/null | grep -q "<rss" && return 1
+    sleep 20
+  done
+  return 0
+}
+
 while :; do
   echo "----- $(date '+%H.%M') -----"
+  if aguait_blocat; then
+    echo "📰 L'Aguait no respon des d'aquesta màquina: es torna a llançar el bucle en una altra."
+    break
+  fi
   passada
   ara=$(date +%s)
   espera=$(( PAS - (ara % PAS) + 20 ))      # alineat als múltiples de 5 minuts (+20 s)
