@@ -39,6 +39,8 @@ from zoneinfo import ZoneInfo
 
 import requests
 
+import agenda_aguait   # 28.11.2026: actes de l'agenda de L'Aguait
+
 TZ = ZoneInfo("Europe/Madrid")
 TAULER = "latdg/tauler"
 ESTAT_REPO = "latdg/apps-script"
@@ -761,6 +763,8 @@ class Bot:
             return
         op = acc["op"]
         self.tg.respon_boto(q["id"])
+        if op.startswith("ag_"):   # 28.11.2026: agenda de L'Aguait
+            return agenda_aguait.boto(self, acc, missatge_id, text_original, modifica)
         if op == "descarta":
             acc["fet"] = True
             return self.tg.edita(missatge_id, text_original + "\n\n✖️ Descartat.")
@@ -903,6 +907,10 @@ class Bot:
                 self.dilluns()
                 self.recordatoris()
                 self.concilia()
+                try:   # 28.11.2026: agenda de L'Aguait (si falla, el futbol continua)
+                    agenda_aguait.ronda(self, modifica, log)
+                except Exception as e:
+                    log("⚠️ agenda de L'Aguait:", type(e).__name__, str(e)[:100])
                 self.desa_estat()
                 errors = 0
             except Exception as e:
@@ -948,6 +956,7 @@ def proves():
         missatge_estat_public("monells_b", pa, "Ajornat")
     assert nom_rival_public("VILOBI FUTBOL CLUB A") == "Vilobí Futbol Club A"
     assert nom_camp_public("CAMP DE FUTBOL MPAL. DE LA BISBAL D'EMPORDA") == "Camp de Futbol Pere Plaja de la Bisbal"
+    agenda_aguait.proves()
     print("Proves: totes bé.")
 
 

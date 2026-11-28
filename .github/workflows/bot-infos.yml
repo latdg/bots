@@ -9,6 +9,8 @@
 # Bucle de 5 h 40 min que es torna a llançar sol (com bots.yml); l'horari
 # queda de reserva per si la cadena s'atura.
 # SECRET: APPS_SCRIPT_TOKEN
+# 28.11.2026: també llegeix l'agenda de L'Aguait (agenda_aguait.py). Per al correu a
+# latdg@laguait.cat: secrets SMTP_USUARI i SMTP_CONTRASENYA (opcionals).
 # =============================================================================
 name: Bot latdg_infos (futbol)
 
@@ -48,6 +50,8 @@ jobs:
       - name: Bot
         env:
           APPS_SCRIPT_TOKEN: ${{ secrets.APPS_SCRIPT_TOKEN }}
+          SMTP_USUARI: ${{ secrets.SMTP_USUARI }}            # 28.11.2026: correu de l'agenda de L'Aguait
+          SMTP_CONTRASENYA: ${{ secrets.SMTP_CONTRASENYA }}  # (contrasenya d'aplicació de Gmail)
         run: python bot_infos.py --props estat/props.json --props-esports estat/esports/props.json
 
       - name: Tornar-se a llançar
